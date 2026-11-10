@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Documentation management</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #12161c; --fg: #e3e8ef; --muted: #9aa5b4; --line: #2a323d; --soft: #1a2029; --accent: #7aa2ff;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #ffffff; --fg: #1c2430; --muted: #5b6675; --line: #dfe4ea; --soft: #f4f6f9; --accent: #1d4ed8;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Arial, sans-serif; }
+
+.doc-top { max-width: 1400px; margin: 0 auto; padding: 14px 20px 0; display: flex; justify-content: flex-end; }
+#docTheme { font: inherit; font-size: 14px; padding: 4px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg); color: var(--muted); cursor: pointer; }
+#docTheme:hover { color: var(--fg); }
+
+.doc-layout { --toc-w: 220px; --toc-gap: 44px; max-width: 1400px; margin: 0 auto; padding: 14px 20px 120px; display: grid; grid-template-columns: var(--toc-w) minmax(0, 1fr); gap: var(--toc-gap); }
+nav.doc-toc { position: sticky; top: 24px; align-self: start; max-height: calc(100vh - 48px); overflow: auto; font-size: 14px; }
+nav.doc-toc p { font-weight: 600; margin: 0 0 10px; }
+nav.doc-toc a { display: block; padding: 5px 10px; color: var(--muted); text-decoration: none; border-left: 2px solid var(--line); }
+nav.doc-toc a:hover { color: var(--fg); }
+nav.doc-toc a.is-current { color: var(--accent); border-left-color: var(--accent); font-weight: 600; }
+@media (max-width: 900px) {
+  .doc-layout { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  nav.doc-toc { position: static; max-height: none; }
+}
+
+main { min-width: 0; }
+main > * { max-width: 780px; }
+h1 { font-size: 28px; line-height: 1.25; margin: 0 0 6px; }
+h2 { font-size: 22px; margin: 44px 0 10px; scroll-margin-top: 16px; }
+h3 { font-size: 17px; margin: 24px 0 6px; }
+ul, ol { padding-left: 22px; } li { margin: 4px 0; }
+a { color: var(--accent); }
+code { font: 14px/1.4 Consolas, "Cascadia Mono", ui-monospace, monospace; background: var(--soft); padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--soft); padding: 10px 12px; border-radius: 6px; font: 13.5px/1.5 Consolas, "Cascadia Mono", ui-monospace, monospace; overflow-x: auto; margin: 10px 0 14px; }
+pre code { background: none; padding: 0; font: inherit; }
+table { border-collapse: collapse; width: 100%; margin: 10px 0 14px; font-size: 15px; }
+th, td { text-align: left; vertical-align: top; padding: 7px 10px; border-bottom: 1px solid var(--line); }
+th { color: var(--muted); font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="doc-top"><button type="button" id="docTheme">Light mode</button></div>
+<div class="doc-layout">
+<nav class="doc-toc" aria-label="Contents">
+  <p>Contents</p>
+  <a href="#summary">1. Summary</a>
+  <a href="#folders">2. Plan folders</a>
+  <a href="#names">3. Plan filenames</a>
+  <a href="#format">4. Formatting</a>
+  <a href="#testing">5. No live testing</a>
+  <a href="#mirror">6. Agent instruction files</a>
+</nav>
+<main>
+<h1>Documentation management</h1>
+
+<h2 id="summary">1. Summary</h2>
+<ul>
+  <li>Plans live under <code>docs/plans/</code>, in a folder that says what state they are in: active, implemented, archived or deferred.</li>
+  <li>A plan file is named <code>&lt;yyyy-mm-dd&gt;-n&lt;index&gt;-&lt;plan name&gt;</code>, with no spaces or special characters. Plans named before the four-digit year keep their <code>yy-mm-dd</code> names.</li>
+  <li>How a document looks and is laid out comes from the <a href="html-documentation-guideline.html">HTML documentation guideline</a>. Plans with screens have interactive demos (§4.1). The editable document format is used only when the user asks for it (§4.2).</li>
+  <li>The agent does not test its work live. The operator tests by hand.</li>
+  <li><code>CLAUDE.md</code> and <code>AGENTS.md</code> mirror each other.</li>
+</ul>
+
+<h2 id="folders">2. Plan folders</h2>
+<table>
+  <tr><th>Folder</th><th>Holds</th></tr>
+  <tr><td><code>docs/plans/</code></td><td>Active plans: being written, or being worked from.</td></tr>
+  <tr><td><code>docs/plans/implemented/</code></td><td>Completed plans. A plan moves here once it has shipped.</td></tr>
+  <tr><td><code>docs/plans/archived/</code></td><td>Plans folded into a later plan that implements them as part of a whole. Kept for their reasoning, not worked from directly.</td></tr>
+  <tr><td><code>docs/plans/deferred/</code></td><td>Plans set aside for development in the far future.</td></tr>
+</table>
+<p>Moving a plan between folders does not change its filename.</p>
+
+<h2 id="names">3. Plan filenames</h2>
+<pre><code>&lt;yyyy-mm-dd&gt;-n&lt;index&gt;-&lt;plan name&gt;.html</code></pre>
+<table>
+  <tr><th>Part</th><th>Meaning</th></tr>
+  <tr><td><code>&lt;yyyy-mm-dd&gt;</code></td><td>The date the plan was created, not the date it was implemented or moved, with a four-digit year. Older plans named <code>yy-mm-dd</code> keep their names; they are not renamed.</td></tr>
+  <tr><td><code>n&lt;index&gt;</code></td><td>1-based index of the plan among those created the same day (<code>n1</code>, <code>n2</code>, <code>n3</code>), so same-day plans don't collide.</td></tr>
+  <tr><td><code>&lt;plan name&gt;</code></td><td>A short description of the plan, in lowercase words joined by hyphens.</td></tr>
+</table>
+<p>Example:</p>
+<pre><code>2026-09-23-n1-sidebar-reorder-and-run-panel-strategy-list.html</code></pre>
+<h3>3.1 Why no special characters</h3>
+<p>Browsers mangle spaces, <code>#</code> and other special characters in a URL. A space becomes <code>%20</code>, and everything after a <code>#</code> is read as a fragment, so the file does not open. Use only lowercase letters, digits and hyphens, plus the dot before the extension.</p>
+<h3>3.2 Naming a new plan</h3>
+<ol>
+  <li>Take today's date as <code>yyyy-mm-dd</code>.</li>
+  <li>Look at the existing filenames for that date, in every plan folder and in both forms (<code>yyyy-mm-dd</code> and the older <code>yy-mm-dd</code>), and pick the next unused index.</li>
+  <li>Add the plan name and the extension (<code>.html</code> or <code>.md</code>).</li>
+</ol>
+
+<h2 id="format">4. Formatting</h2>
+<p>Formatting is taken from the <a href="html-documentation-guideline.html">HTML documentation guideline</a> (<code>tips/html-documentation-guideline.html</code>, next to this file). Read it before writing a document. In brief, it asks for:</p>
+<ul>
+  <li>A brief summary as the first section.</li>
+  <li>A table of contents at the side that follows the scrolling and marks the section being read. Every heading it links to has an <code>id</code>.</li>
+  <li>Visible section and step numbers, in the headings, in the table of contents and on the steps of any procedure, so a place can be referred to by number ("§3.2", "step 4").</li>
+  <li>A dark page with a light mode toggle at the top.</li>
+  <li>Demos, animations and diagrams when the user asks for them, written into the document itself.</li>
+  <li>A demo that needs more room goes wide and keeps its text and element sizes. It is not shrunk to fit the text column.</li>
+</ul>
+<p>The guideline is the source. Where this list and the guideline differ, follow the guideline.</p>
+<h3>4.1 Plans with screens</h3>
+<ul>
+  <li>Plans that propose or change screens carry <strong>interactive demos</strong>: a mock phone or computer that the reader taps through, with Show me, Play all, Back and Start again. Static pictures alone are not enough.</li>
+  <li>Build them with the project's demo kit where it has one (for example a page builder shared with the user guides), and run its checks. They must end with no problems.</li>
+</ul>
+<h3>4.2 Editable documents only on demand</h3>
+<ul>
+  <li>The <a href="editable-documentation-guideline.html">editable document format</a> (click to edit, change log, export) is used <strong>only when the user asks for it</strong> for a specific document.</li>
+  <li>Never use it by default, for plans or any other document.</li>
+</ul>
+<p>Documents are written as files in the repository. They are not published anywhere else.</p>
+
+<h2 id="testing">5. No live testing</h2>
+<p>The agent does not test its work live. The operator tests the work by hand, and live testing by the agent costs tokens for a check that is going to be done anyway.</p>
+<ul>
+  <li>Don't start the app, drive it in a browser or take screenshots to confirm a change.</li>
+  <li>Don't open a document in a browser to check how it renders.</li>
+  <li>Checks at the level of the code are fine: reading the code back, a syntax check, a linter, existing unit tests.</li>
+  <li>In the final message, say what was checked and what was left for the operator to test.</li>
+</ul>
+
+<h2 id="mirror">6. Agent instruction files</h2>
+<ul>
+  <li><code>CLAUDE.md</code> and <code>AGENTS.md</code> hold the same guidance and must mirror each other.</li>
+  <li>A change to one is made to the other in the same change.</li>
+  <li>If they fall out of sync, the one edited most recently is authoritative and is copied over the other.</li>
+</ul>
+</main>
+</div>
+
+<script>
+/* light mode toggle */
+(function () {
+  const root = document.documentElement;
+  const btn = document.getElementById('docTheme');
+  btn.addEventListener('click', () => {
+    const toLight = root.dataset.theme !== 'light';
+    if (toLight) root.dataset.theme = 'light'; else delete root.dataset.theme;
+    btn.textContent = toLight ? 'Dark mode' : 'Light mode';
+  });
+})();
+
+/* table of contents: mark the section being read */
+(function () {
+  const links = Array.from(document.querySelectorAll('nav.doc-toc a'));
+  if (!links.length || !('IntersectionObserver' in window)) return;
+  const byId = new Map(links.map((a) => [a.getAttribute('href').slice(1), a]));
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach((e) => {
+      if (!e.isIntersecting) return;
+      const a = byId.get(e.target.id); if (!a) return;
+      links.forEach((l) => l.classList.toggle('is-current', l === a));
+    });
+  }, { rootMargin: '-15% 0px -75% 0px' });
+  byId.forEach((_, id) => { const el = document.getElementById(id); if (el) io.observe(el); });
+})();
+</script>
+</body>
+</html>

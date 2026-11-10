@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QuickSwitch — Rust + egui/eframe implementation plan</title>
+<style>
+:root{color-scheme:dark;--bg:#12161c;--fg:#e3e8ef;--muted:#9aa5b4;--line:#2a323d;--soft:#1a2029;--soft2:#222a36;--accent:#7aa2ff;--ok:#9adeb3;--warn:#f4c777;--shadow:0 24px 60px #0005}
+:root[data-theme="light"]{color-scheme:light;--bg:#ffffff;--fg:#1c2430;--muted:#5b6675;--line:#dfe4ea;--soft:#f4f6f9;--soft2:#e9eef7;--accent:#1d4ed8;--ok:#236e48;--warn:#855800;--shadow:0 16px 40px #1c243017}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--fg);font:15.5px/1.66 system-ui,-apple-system,"Segoe UI",Arial,sans-serif}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}code{font:13.3px/1.4 Consolas,"Cascadia Code",ui-monospace,monospace;background:var(--soft2);padding:1px 5px;border-radius:4px;overflow-wrap:anywhere}pre{background:var(--soft);border:1px solid var(--line);padding:15px 18px;border-radius:9px;font:13.2px/1.55 Consolas,"Cascadia Code",ui-monospace,monospace;overflow:auto;margin:13px 0 19px}pre code{background:none;padding:0;font:inherit;overflow-wrap:normal}strong{font-weight:650}
+.doc-top{max-width:1400px;margin:0 auto;padding:15px 20px 2px;display:flex;align-items:center;justify-content:space-between;gap:10px}.brand{font-size:13px;font-weight:750;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}.brand span{color:var(--accent)}#docTheme{font:inherit;font-size:13px;padding:5px 14px;border:1px solid var(--line);border-radius:999px;background:var(--bg);color:var(--fg);cursor:pointer}#docTheme:hover{background:var(--soft)}
+.doc-layout{--toc-w:218px;--toc-gap:46px;max-width:1400px;margin:0 auto;padding:17px 20px 130px;display:grid;grid-template-columns:var(--toc-w) minmax(0,1fr);gap:var(--toc-gap)}nav.doc-toc{position:sticky;top:24px;align-self:start;max-height:calc(100vh - 48px);overflow:auto;font-size:13.2px;transition:opacity .2s,visibility .2s}nav.doc-toc.is-hidden{opacity:0;visibility:hidden}nav.doc-toc p{font-weight:700;margin:0 0 12px;font-size:12px;text-transform:uppercase;letter-spacing:.08em}nav.doc-toc a{display:block;padding:6px 9px;color:var(--muted);text-decoration:none;border-left:2px solid var(--line);line-height:1.35}nav.doc-toc a:hover{color:var(--fg)}nav.doc-toc a.is-current{color:var(--accent);border-left-color:var(--accent);font-weight:650}
+main{min-width:0}main>*{max-width:780px}main>.doc-wide{max-width:none;overflow-x:auto;margin-left:calc(0px - var(--toc-w) - var(--toc-gap));margin-top:24px;margin-bottom:22px}h1{font-size:35px;line-height:1.17;letter-spacing:-.035em;margin:5px 0 13px}h2{font-size:22px;line-height:1.3;letter-spacing:-.02em;margin:43px 0 11px;scroll-margin-top:16px}h3{font-size:17px;line-height:1.35;margin:28px 0 9px;scroll-margin-top:16px}h4{font-size:14px;margin:19px 0 6px}p{margin:12px 0}ul,ol{padding-left:23px}li{margin:6px 0}li::marker{color:var(--muted)}hr{border:0;border-top:1px solid var(--line);margin:23px 0}.lede{font-size:17px;color:var(--muted);line-height:1.57}.eyebrow{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.11em;color:var(--accent)}.muted{color:var(--muted)}.small{font-size:13px}.callout{background:var(--soft);border-left:3px solid var(--accent);padding:12px 16px;border-radius:0 9px 9px 0;margin:18px 0}.callout.warning{border-left-color:var(--warn)}.tag{display:inline-block;font-size:11px;font-weight:700;border:1px solid var(--line);border-radius:999px;color:var(--muted);padding:2px 9px;margin-right:4px}.checkbox-list{padding-left:0;list-style:none}.checkbox-list li{padding:0 0 0 28px;position:relative}.checkbox-list li:before{content:'□';position:absolute;left:0;top:0;color:var(--accent);font-size:19px;line-height:1.4}.step{background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:15px 17px;margin:12px 0}.step h4{margin:0 0 6px}.step p{margin:5px 0}.step ul{margin:6px 0 2px}.gate{font-size:13px;color:var(--ok);font-weight:650;margin-top:12px}.note{font-size:13px;color:var(--muted)}
+.doc-table{overflow:visible;margin:16px 0 22px}.doc-table table{width:100%;border-collapse:separate;border-spacing:0;font-size:13.5px}th,td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{font-weight:700}thead th{position:sticky;top:0;z-index:2;background:var(--soft);box-shadow:0 1px 0 var(--line)}tbody tr:hover{background:var(--soft)}td:first-child,th:first-child{padding-left:13px}td:last-child,th:last-child{padding-right:13px}.tight th,.tight td{padding:8px 10px}.pass{color:var(--ok);font-weight:650}.amber{color:var(--warn);font-weight:650}
+.doc-wide-in{min-width:1090px}.diagram{border:1px solid var(--line);background:var(--soft);border-radius:12px;padding:26px 28px}.diagram h3{margin:0 0 17px;font-size:17px}.nodes{display:flex;align-items:stretch;gap:12px}.node{background:var(--bg);border:1px solid var(--line);border-radius:9px;flex:1;min-width:0;padding:15px 13px}.node b{display:block;font-size:15px;margin-bottom:5px}.node small{display:block;color:var(--muted);font-size:12.2px;line-height:1.55}.node.blue{border-color:var(--accent)}.node.gold{border-color:var(--warn)}.node strong{color:var(--accent)}.arrow{align-self:center;color:var(--muted);font-size:22px}.branch{display:flex;gap:12px;margin-top:13px}.branch .node{flex:1}.branch .node:first-child{flex:2}.diagram-caption{font-size:12px;color:var(--muted);margin-top:15px}
+.toc-btn{position:fixed;left:10px;top:50%;transform:translateY(-50%);z-index:50;width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:var(--soft);color:var(--fg);cursor:pointer;box-shadow:var(--shadow)}.toc-panel{position:fixed;left:52px;top:50%;transform:translateY(-50%);z-index:51;width:min(310px,calc(100vw - 80px));max-height:80vh;overflow:auto;background:var(--soft);border:1px solid var(--line);padding:12px;border-radius:10px;box-shadow:var(--shadow)}.toc-panel a{display:block;padding:7px 10px;border-radius:5px;color:var(--muted);font-size:13px}.toc-panel a.is-current{color:var(--accent);background:var(--soft2)}.toc-btn[hidden],.toc-panel[hidden]{display:none}
+@media(max-width:900px){.doc-layout{grid-template-columns:minmax(0,1fr);gap:8px}.doc-layout{padding-bottom:80px}nav.doc-toc{position:static;max-height:none;border-bottom:1px solid var(--line);padding-bottom:10px;columns:2}nav.doc-toc p{column-span:all}nav.doc-toc.is-hidden{opacity:1;visibility:visible}main>.doc-wide{margin-left:0}.doc-table{max-height:80vh;overflow:auto}.doc-wide-in{min-width:1090px}.toc-btn{display:none}h1{font-size:31px}}
+@media(max-width:590px){nav.doc-toc{columns:1}.doc-top{padding-left:16px;padding-right:16px}.doc-layout{padding-left:16px;padding-right:16px}h1{font-size:27px}h2{font-size:21px}.doc-table table{min-width:580px}}
+@media print{:root{color-scheme:light;--bg:white;--fg:#151515;--muted:#444;--line:#ddd;--soft:#f5f5f5;--soft2:#eee;--accent:#194f9c;--ok:#225532;--warn:#674900}body{font-size:12px}.doc-layout{display:block;max-width:100%;padding:0 25px}.doc-top,nav.doc-toc,.toc-btn,.toc-panel{display:none!important}main>*{max-width:none}h2,h3{break-after:avoid}pre,.step,.diagram,tr{break-inside:avoid}main>.doc-wide{margin-left:0;overflow:visible}.doc-wide-in{min-width:0}.diagram{font-size:10px;padding:10px}.node{padding:8px}.arrow{font-size:12px}}
+
+/* The wide interactive eframe/egui popup preview (browser simulation only). */
+kbd{background:var(--soft2);border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:1px 5px;font:12px Consolas,monospace}
+.demo-wrap .doc-wide-in{min-width:1090px}.demo-header{display:flex;align-items:center;justify-content:space-between;gap:15px;min-width:1090px;padding:14px 20px;background:var(--soft);border:1px solid var(--line);border-radius:13px 13px 0 0}.demo-header strong{font-size:15px}.demo-header span{display:block;color:var(--muted);font-size:12px;margin-top:1px}.demo-controls{display:flex;gap:8px}.demo-controls button{cursor:pointer;border:none;border-radius:8px;padding:8px 12px;background:#79a6fa;color:#0a1630;font-size:12px;font-weight:700}.demo-controls button.secondary{background:var(--soft2);color:var(--fg);border:1px solid var(--line)}.demo-controls button:hover{filter:brightness(1.1)}
+.demo-desktop{position:relative;height:510px;overflow:hidden;border:1px solid #283146;border-top:0;border-radius:0 0 13px 13px;background:radial-gradient(ellipse 65% 90% at 73% 78%,#3658a2 0%,#1a3b77 35%,transparent 70%),radial-gradient(ellipse 80% 100% at 14% 10%,#313c78 0%,transparent 63%),linear-gradient(135deg,#151c35 3%,#112345 54%,#11192d 100%);color:#f2f6fe;font-family:system-ui,-apple-system,'Segoe UI',sans-serif}
+.demo-desktop:before{content:"";position:absolute;width:480px;height:480px;border-radius:70px;left:58%;top:-190px;transform:rotate(40deg);background:linear-gradient(115deg,transparent,#b6dcff17,transparent);border:2px solid #d7e9ff18}.demo-desk-title{position:absolute;left:30px;top:30px;font-size:15px;letter-spacing:.05em;font-weight:750}.demo-desk-title span{display:block;font-size:11px;font-weight:450;letter-spacing:0;color:#a9b9d7}.demo-desk-note{position:absolute;left:32px;top:90px;font-size:13px;color:#c1cbe2;line-height:1.7}.demo-taskbar{position:absolute;bottom:0;left:0;right:0;height:50px;background:#0e1728e9;backdrop-filter:blur(16px);border-top:1px solid #ffffff1e;display:flex;justify-content:space-between;align-items:center;padding:0 23px;color:#e1e8f8;font-size:12px}.demo-taskbarleft,.demo-trayarea{display:flex;gap:19px;align-items:center}.demo-taskbarleft span:not(:first-child){background:#ffffff0e;border:1px solid #ffffff12;border-radius:7px;padding:5px 10px}.win-mark{font-size:24px;color:#b4d3ff}.demo-tray{color:#fff;background:transparent;border:none;cursor:pointer;display:flex;gap:7px;align-items:center;font-size:16px;padding:5px 7px;border-radius:6px}.demo-tray span{font-size:12px}.demo-tray:hover{background:#ffffff22}
+.demo-palette{position:absolute;z-index:3;width:680px;max-width:calc(100% - 60px);top:70px;left:50%;transform:translateX(-50%);border-radius:17px;background:#151b28eb;border:1px solid #dbe6ff40;box-shadow:0 30px 90px #050914a8,0 2px 15px #0007;backdrop-filter:blur(30px);overflow:hidden;opacity:1;transition:opacity .14s,transform .14s}.demo-palette.demo-hidden{opacity:0;pointer-events:none;transform:translate(-50%,-10px)}.demo-inputrow{height:74px;display:flex;gap:13px;align-items:center;padding:0 23px;border-bottom:1px solid #ffffff1e}.demo-magnify{font-size:31px;color:#9cb6e4;line-height:1}.demo-inputrow input{font:20px/1.2 system-ui,'Segoe UI',sans-serif;border:none;outline:none;min-width:0;flex:1;background:transparent;color:#f5f7fc;caret-color:#92bcff}.demo-inputrow input::placeholder{color:#94a0b7}.demo-key{font-size:10px;font-weight:750;color:#a3aec2;border:1px solid #63708370;border-radius:5px;padding:2px 6px}.demo-results{padding:7px;min-height:218px;max-height:244px;overflow:auto}.demo-result{border:0;border-radius:9px;background:transparent;color:#ecf0fa;display:flex;align-items:center;gap:14px;width:100%;text-align:left;padding:10px 14px;cursor:pointer}.demo-result:hover,.demo-result.is-selected{background:#91baff25}.demo-result.is-selected{outline:1px solid #9bc3ff50}.demo-icon{width:37px;height:37px;flex:none;border-radius:10px;background:#ffffff12;display:flex;align-items:center;justify-content:center;font-size:19px}.demo-result-body{min-width:0;flex:1}.demo-result-title{font-size:14px;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;font-weight:660}.demo-result-sub{font-size:11px;color:#acbad4;margin-top:3px;white-space:nowrap;text-overflow:ellipsis;overflow:hidden}.demo-kind{font-size:10px;border:1px solid #ffffff23;background:#ffffff0b;padding:3px 7px;border-radius:7px;color:#bbc7dd}.demo-foot{display:flex;justify-content:space-between;align-items:center;color:#9facbe;border-top:1px solid #ffffff1e;font-size:11px;padding:11px 20px}.demo-empty{font-size:13px;color:#b0bfd8;padding:24px 20px}.demo-traymenu{position:absolute;bottom:56px;right:27px;width:266px;padding:8px;border-radius:12px;border:1px solid #4a546a;background:#202738f5;z-index:5;box-shadow:0 16px 48px #0009}.demo-traymenu[hidden]{display:none}.demo-menuhead{display:flex;justify-content:space-between;border-bottom:1px solid #ffffff22;margin:0 5px 6px;padding:6px 4px 12px;font-size:13px;font-weight:700}.demo-menuhead span{font-size:11px;color:#9edbb0;font-weight:500}.demo-traymenu button{display:flex;justify-content:space-between;width:100%;background:none;border:0;color:#e3eaf8;font-size:12px;text-align:left;border-radius:6px;padding:10px 9px;cursor:pointer}.demo-traymenu button:hover{background:#ffffff1d}.demo-traymenu small{color:#9ba8bf}.demo-checkline{display:flex;align-items:center;gap:9px;color:#e3eaf8;font-size:12px;padding:10px 9px;cursor:pointer}.demo-checkline:hover{background:#ffffff1d}.demo-checkline input{accent-color:#80aaff}.demo-menusep{border-top:1px solid #ffffff24;margin:3px 6px}.demo-toast{position:absolute;bottom:70px;left:50%;transform:translateX(-50%);max-width:80%;background:#0c1324ed;border:1px solid #ffffff3c;padding:9px 15px;border-radius:9px;color:#dce9ff;font-size:12px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:6;text-align:center}.demo-toast.is-visible{opacity:1}
+@media print{.demo-desktop{height:430px;print-color-adjust:exact;-webkit-print-color-adjust:exact}.demo-palette{top:38px}}
+
+</style>
+</head>
+<body>
+<div class="doc-top"><div class="brand"><span>QuickSwitch</span> / egui + eframe engineering plan</div><button type="button" id="docTheme">Light mode</button></div>
+<div class="doc-layout">
+<nav class="doc-toc" aria-label="Contents">
+<p>Contents</p>
+<a href="#summary">1. Summary</a>
+<a href="#requirements">2. Product behavior</a>
+<a href="#demo">2.3 Interactive popup demo</a>
+<a href="#stack">3. Technology choices</a>
+<a href="#architecture">4. Runtime architecture</a>
+<a href="#model">5. Search &amp; action model</a>
+<a href="#phases">6. Implementation steps</a>
+<a href="#startup">7. Tray, startup &amp; lifecycle</a>
+<a href="#risks">8. Risks &amp; decisions</a>
+<a href="#tests">9. Tests &amp; acceptance</a>
+<a href="#release">10. Packaging &amp; release</a>
+<a href="#references">11. References</a>
+</nav>
+<main>
+<div class="eyebrow">Technical plan · Windows 11 · Rust · egui 0.37 / eframe 0.37 · v1</div>
+<h1>QuickSwitch: a Spotlight-style Rust launcher with egui</h1>
+<p class="lede">Build a small native Windows tool that opens with <code>Ctrl + Win + K</code>, searches open window titles and individual File Explorer tabs, and launches folders from Linux-friendly path input. The process keeps running in the system tray until explicitly exited, with an optional “Start with Windows” setting.</p>
+<p><span class="tag">egui + eframe</span><span class="tag">One executable</span><span class="tag">Tray resident</span><span class="tag">No Electron</span><span class="tag">Startup opt-in</span></p>
+
+<h2 id="summary">1. Summary</h2>
+<p><strong>Recommended implementation:</strong> one Rust GUI process using <code>eframe</code> + <code>egui</code> for the borderless search popup; <code>tray-icon</code> for the notification area; <code>global-hotkey</code> for the shortcut; and the <code>windows</code> crate for window switching and COM/UI Automation. Run UI Automation on a dedicated MTA worker thread. Use a small fuzzy matcher to filter a snapshot of open windows and Explorer tabs.</p>
+<div class="callout"><strong>Scope of v1:</strong> launch silently into the notification area; show a centered search box; select a matching open window or Explorer tab; accept <code>~/folder</code>, <code>C:/folder</code> and UNC folder paths; expose a tray-menu option to enable or disable per-user startup.</div>
+<p><strong>Critical uncertainty:</strong> there is no promised stable, Explorer-tab-specific control API in this plan. Individual tab activation depends on what File Explorer exposes through UI Automation on the installed Windows build. Validate this with a small spike before implementing the entire UI.</p>
+<p><strong>Not in v1:</strong> disk-wide search, search inside Chrome/Edge tabs, WSL/Linux filesystem translation, indexing, a plugin framework, auto-updating, cloud services or elevated privileges.</p>
+
+<h2 id="requirements">2. Product behavior</h2>
+<h3>2.1 User interactions</h3>
+<div class="doc-table"><table><thead><tr><th>Trigger</th><th>Expected behavior</th></tr></thead><tbody>
+<tr><td>Launch <code>QuickSwitch.exe</code></td><td>Start one background process, initialize <code>eframe</code> hidden, create a tray icon and register the hotkey. Do not show a visible window.</td></tr>
+<tr><td><code>Ctrl + Win + K</code></td><td>Toggle a compact, centered popup on the active monitor. Put keyboard focus in its search field.</td></tr>
+<tr><td>Type free-form text</td><td>Fuzzy-match open top-level window titles and known Explorer-tab labels; update results immediately.</td></tr>
+<tr><td>Type <code>~/...</code> or <code>C:/...</code></td><td>Offer a folder-opening action for a valid path; show a clear “not found” message for an invalid folder.</td></tr>
+<tr><td><code>↑</code>, <code>↓</code>, <code>Enter</code></td><td>Move through results and activate the selected window/tab or open the folder.</td></tr>
+<tr><td><code>Esc</code>, click away, or hotkey again</td><td>Hide the popup. Keep the process, hotkey, and tray icon alive.</td></tr>
+<tr><td>Tray left-click / context menu</td><td>Left-click opens search. Context menu offers Open Search, Start with Windows (checkable), and Exit. Closing the popup is never Exit.</td></tr>
+<tr><td>Tray → Exit</td><td>Unregister hotkey, remove tray icon, stop worker and exit the process. Startup preference is retained.</td></tr>
+</tbody></table></div>
+<h3>2.2 Visual and keyboard details</h3>
+<ul>
+<li>Show a borderless, focusable popup approximately <code>680 × 340</code> logical pixels, scaling for display DPI. Center it over the active foreground window’s monitor, not always the primary monitor.</li>
+<li>One <code>egui::TextEdit</code> search input and up to 8–10 results. Each result shows a title and a small kind label: <em>Window</em>, <em>Explorer tab</em>, or <em>Open folder</em>.</li>
+<li>Support duplicate names by including application or Explorer-window context. Remember the most recently selected results to improve ordering.</li>
+<li>Windows that are minimized should be restored before activation. Failed switches must show a short error instead of silently closing.</li>
+</ul>
+
+
+<h3 id="demo">2.3 Interactive search popup demo</h3>
+<p>This is a <strong>working browser mockup</strong> of the intended <code>egui</code> user experience, not the Rust binary. Open the simulated popup, filter the sample windows and Explorer tabs, try a path such as <code>~/Documents</code>, or toggle startup in the tray. Use <kbd>↑</kbd>, <kbd>↓</kbd>, <kbd>Enter</kbd>, and <kbd>Esc</kbd> inside the popup. A browser cannot actually switch Windows windows or create Explorer folders.</p>
+<figure class="doc-wide demo-wrap" aria-label="Interactive QuickSwitch popup demonstration">
+ <div class="doc-wide-in">
+  <div class="demo-header"><div><strong>QuickSwitch · interactive preview</strong><span>Sample desktop, sample windows and folders</span></div><div class="demo-controls"><button type="button" id="demoOpen">Open search</button><button type="button" id="demoProjects" class="secondary">Search “projects”</button><button type="button" id="demoPath" class="secondary">Try ~/Documents</button></div></div>
+  <div class="demo-desktop" id="demoDesktop">
+   <div class="demo-wallpaper"><div class="demo-desk-title">Desktop <span>QuickSwitch preview</span></div><div class="demo-desk-note">Press “Open search” or click the tray icon.<br>All actions here are simulated.</div></div>
+   <section class="demo-palette" id="demoPalette" role="dialog" aria-label="QuickSwitch search" aria-modal="false">
+    <div class="demo-inputrow"><span class="demo-magnify" aria-hidden="true">⌕</span><input type="text" id="demoInput" aria-label="Search windows, tabs, or type a folder path" placeholder="Search windows, tabs, or open a folder…" autocomplete="off" spellcheck="false"><span class="demo-key">ESC</span></div>
+    <div class="demo-results" id="demoResults" role="listbox" aria-label="Search results"></div>
+    <div class="demo-foot"><span>↑ ↓ navigate &nbsp; Enter select</span><span id="demoCount">0 results</span></div>
+   </section>
+   <div class="demo-taskbar"><span class="demo-taskbarleft"><span class="win-mark" aria-hidden="true">⊞</span><span>File Explorer</span><span>Visual Studio Code</span></span><div class="demo-trayarea"><button type="button" class="demo-tray" id="demoTray" aria-label="Open QuickSwitch tray menu" title="QuickSwitch tray menu">✧ <span>QuickSwitch</span></button><span>▴</span><span>10:35</span></div></div>
+   <div class="demo-traymenu" id="demoTrayMenu" hidden><div class="demo-menuhead">✧ QuickSwitch <span>running</span></div><button type="button" id="demoMenuOpen">Open search <small>Ctrl + Win + K</small></button><label class="demo-checkline"><input type="checkbox" id="demoStartup">Start with Windows</label><div class="demo-menusep"></div><button type="button" id="demoExit">Exit QuickSwitch</button></div>
+   <div class="demo-toast" id="demoToast" role="status" aria-live="polite"></div>
+  </div>
+  <figcaption class="diagram-caption">Interactive behavior shown: fuzzy-ish filtering, result focus, tab/window differentiation, path action, Escape to hide, and a checkable system-tray startup preference. This demo cannot inspect your real Windows session.</figcaption>
+ </div>
+</figure>
+<p><strong>Visual contract:</strong> dark, compact search box (~680 × 340 logical pixels in the Rust app), Windows 11-style rounded corners, no taskbar button, keyboard-first navigation, and no permanent open main window. The real popup must center on the active monitor rather than this simulated desktop.</p>
+
+
+<h2 id="stack">3. Technology choices</h2>
+<div class="doc-table"><table><thead><tr><th>Concern</th><th>Choice</th><th>Why</th></tr></thead><tbody>
+<tr><td>Desktop popup</td><td><strong><code>eframe 0.37</code> + <code>egui 0.37</code></strong></td><td>Fast, styled, borderless search UI; event-driven painting; keyboard navigation without owner-drawn Win32 controls.</td></tr>
+<tr><td>Renderer</td><td><code>glow</code> candidate; benchmark vs default <code>wgpu</code></td><td><code>glow</code> can reduce release binary size, but test initialization, GPU footprint and driver compatibility; use whichever works best on target Windows machines.</td></tr>
+<tr><td>Tray and context menu</td><td><code>tray-icon</code> (Windows backend)</td><td>Native notification-area icon and menu. Construct on the native event-loop thread; keep the handle alive.</td></tr>
+<tr><td>Global hotkey</td><td><code>global-hotkey</code></td><td>Use <code>Ctrl + Win + K</code> without polling or low-level keyboard hooks; construct on thread with a Win32 event loop.</td></tr>
+<tr><td>Windows enumeration / activation</td><td><code>windows</code> crate: <code>EnumWindows</code>, <code>ShowWindow</code>, <code>SetForegroundWindow</code></td><td>Windows-native titles, HWNDs, and explicit switching; activation still respects foreground-focus rules.</td></tr>
+<tr><td>Explorer tabs</td><td><code>windows</code> + COM UI Automation</td><td>Read exposed <code>TabItem</code> elements and attempt <code>SelectionItemPattern</code> activation on an MTA worker.</td></tr>
+<tr><td>Fuzzy ranking</td><td><code>nucleo-matcher</code></td><td>Rank titles and tab labels in-memory; no filesystem crawler.</td></tr>
+<tr><td>Thread messages</td><td><code>crossbeam-channel</code> or <code>std::sync::mpsc</code>, plus <code>egui::Context::request_repaint</code></td><td>Signal UI after tray/hotkey/worker messages; process state in <code>App::logic</code>, avoiding busy polling.</td></tr>
+<tr><td>Configuration</td><td><code>serde</code> + <code>toml</code> (optional)</td><td>Persist preferences and recency at <code>%APPDATA%\QuickSwitch\config.toml</code>.</td></tr>
+<tr><td>Start with Windows</td><td>Per-user <code>HKCU\Software\Microsoft\Windows\CurrentVersion\Run</code> entry</td><td>Explicit opt-in without administrator rights or a service.</td></tr>
+</tbody></table></div>
+<h3>3.1 Starter Cargo manifest</h3>
+<pre><code>[package]
+name = "quickswitch"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+eframe = { version = "0.37", default-features = false, features = ["glow", "default_fonts"] }
+tray-icon = "0.26"
+global-hotkey = "0.10"
+nucleo-matcher = "0.3"
+crossbeam-channel = "0.5"
+serde = { version = "1", features = ["derive"] }
+toml = "0.9"
+# Add `windows` and appropriate Win32/COM feature flags once the API spike is working.
+# Pin actual resolved crate versions with Cargo.lock, and adjust optional features after testing.</code></pre>
+<p class="note">Version references are a 10 November 2026 starting point, not a tested dependency lockfile. The Windows bindings version and required feature list should be selected while building the UIA spike. You can swap <code>glow</code> for the default WGPU renderer after comparing startup latency, memory, and graphics compatibility.</p>
+<h3>3.2 eframe API detail that matters</h3>
+<p>In <code>eframe 0.37</code>, the application implements <code>App::ui(&amp;mut self, ui, frame)</code> for rendering and may implement <code>App::logic(&amp;mut self, ctx, frame)</code> for non-rendering work. The <code>logic</code> hook can run on repaint requests even when the window is hidden. This is a better fit than relying on the older <code>App::update</code> examples you may find online.</p>
+<pre><code>// Minimal illustration of a hidden root viewport; not the full tray integration.
+let native_options = eframe::NativeOptions {
+    viewport: eframe::egui::ViewportBuilder::default()
+        .with_title("QuickSwitch")
+        .with_inner_size([680.0, 340.0])
+        .with_decorations(false)
+        .with_resizable(false)
+        .with_taskbar(false)
+        .with_visible(false),
+    ..Default::default()
+};
+eframe::run_native(
+    "QuickSwitch",
+    native_options,
+    Box::new(|cc| Ok(Box::new(QuickSwitchApp::new(cc)))),
+)?;</code></pre>
+<p class="note">The root viewport is hidden, not closed. In <code>logic</code>, drain queued commands such as <code>Open</code>/<code>Hide</code>, send <code>ViewportCommand::Visible(bool)</code> and <code>ViewportCommand::Focus</code>, and request paint only for state changes. On the popup render pass, use <code>egui::TextEdit::singleline</code>, capture arrow/Enter/Escape, and request focus for the input when shown. Never send <code>ViewportCommand::Close</code> just to dismiss the palette: closing the root typically exits the program. Test the exact wake-up and focus behavior on Windows.</p>
+
+
+<h2 id="architecture">4. Runtime architecture</h2>
+<p><strong>One native event loop, one hidden root viewport, one UI Automation worker.</strong> Let <code>eframe</code>/winit own the Windows event loop. Create the tray icon and hotkey manager on that event-loop thread (during app initialization, after the loop exists). Relay hotkey, tray and menu events into a non-blocking app-command queue, then call <code>egui::Context::request_repaint</code> to wake the hidden app. Keep UIA COM objects on their dedicated MTA thread and transmit only owned result metadata.</p>
+<figure class="doc-wide"><div class="doc-wide-in diagram">
+<h3>4.1 Event and data flow</h3>
+<div class="nodes">
+<div class="node blue"><b>Keyboard / tray</b><small><code>global-hotkey</code> + <code>tray-icon</code></small><small>Open · Toggle · Settings · Exit</small></div>
+<div class="arrow">→</div>
+<div class="node blue"><b>Command queue</b><small>Event handlers enqueue action</small><small><code>ctx.request_repaint()</code></small></div>
+<div class="arrow">→</div>
+<div class="node"><b>eframe main loop</b><small><code>App::logic</code>: lifecycle and commands</small><small><code>App::ui</code>: only when visible</small></div>
+<div class="arrow">⇄</div>
+<div class="node gold"><b>UIA worker (MTA)</b><small>Discover Explorer tabs</small><small>Select tab on command</small></div>
+</div>
+<div class="branch">
+<div class="node"><b>On query and selection</b><small><b>Windows:</b> Win32 enumeration/foreground activation &nbsp; <b>Tabs:</b> UIA selection + Explorer activation &nbsp; <b>Paths:</b> normalize, validate, then launch Explorer</small></div>
+<div class="node"><b>Long-lived OS integration</b><small>Tray icon · hotkey · startup value · single-instance guard · preferences</small></div>
+</div>
+<div class="diagram-caption">The root window remains hidden while idle. Render on demand, not at a timer-driven 60 FPS. The app stays alive until the tray Exit action or OS session shutdown.</div>
+</div></figure>
+<h3>4.2 Runtime ownership and window lifecycle</h3>
+<div class="doc-table"><table><thead><tr><th>Owner</th><th>Responsibilities</th><th>Does not do</th></tr></thead><tbody>
+<tr><td>Main thread: eframe + egui</td><td>Native event pump, popup state, tray/hotkey handles, command dispatch, search UI</td><td>Traverse Explorer UIA providers synchronously</td></tr>
+<tr><td>UIA worker (MTA)</td><td>Enumerate <code>TabItem</code> elements, maintain short-lived tab handles, select requested tab</td><td>Touch egui state directly or paint widgets</td></tr>
+<tr><td>Search model</td><td>Plain cloned result records, filtering, ranking, path parsing</td><td>Keep COM interface objects or native window handles beyond validation</td></tr>
+</tbody></table></div>
+<p>Do not rely on receiving UI callbacks just because a channel has data. Use each crate’s documented event-handler hook (or a dedicated bridge) to enqueue a command and call <code>request_repaint</code>. <code>eframe::App::logic</code> is allowed to handle commands while hidden, but <strong>must not render UI</strong>. On an Open command, restore visibility and arrange focus; on Hide, set <code>Visible(false)</code>. Only an explicit Exit should shut down the root viewport.</p>
+<h3>4.3 Proposed repository layout</h3>
+<pre><code>quickswitch/
+├─ Cargo.toml
+├─ Cargo.lock
+├─ resources/
+│  └─ quickswitch.ico
+├─ src/
+│  ├─ main.rs                 # GUI subsystem + eframe::run_native
+│  ├─ app.rs                  # eframe::App::logic + App::ui
+│  ├─ ui/
+│  │  ├─ mod.rs
+│  │  ├─ palette.rs           # egui TextEdit, results, keyboard
+│  │  └─ styles.rs            # egui Visuals, spacing and typography
+│  ├─ os/
+│  │  ├─ mod.rs
+│  │  ├─ tray.rs              # tray-icon, menu, events
+│  │  ├─ hotkey.rs            # global-hotkey registration
+│  │  ├─ windows.rs           # EnumWindows + SetForegroundWindow
+│  │  └─ instance.rs          # singleton + second-process wake-up
+│  ├─ search/
+│  │  ├─ mod.rs
+│  │  ├─ explorer_tabs.rs     # dedicated UIA MTA worker
+│  │  └─ matcher.rs           # nucleo-matcher ranking
+│  ├─ actions/
+│  │  ├─ mod.rs
+│  │  └─ paths.rs             # ~, /, . and UNC handling
+│  ├─ config.rs              # preferences and recency (optional)
+│  └─ startup.rs             # HKCU Run toggle
+└─ tests/
+   ├─ paths.rs
+   └─ matcher.rs</code></pre>
+<h3>4.4 Initialization and shutdown pseudocode</h3>
+<pre><code>MAIN:
+  acquire per-user singleton lock (or signal existing QuickSwitch, exit)
+  create eframe root viewport with visible=false, taskbar=false
+  on eframe event-loop thread: create tray-icon + global-hotkey
+  initialize App with command queue and egui context
+  start UIA worker (MTA)
+  event handlers: enqueue command; ctx.request_repaint()
+  App::logic: drain commands; show/hide viewport; collect worker results
+  App::ui: render TextEdit, ranked results and status only when visible
+  tray Exit: unregister shortcut; drop tray icon; stop worker; exit root
+  OS session shutdown: best-effort cleanup</code></pre>
+
+<h2 id="model">5. Search &amp; action model</h2>
+<h3>5.1 Result types</h3>
+<pre><code>enum Target {
+    Window { hwnd: isize },
+    ExplorerTab { explorer_hwnd: isize, token: u64 },
+    OpenFolder { path: std::path::PathBuf },
+}
+
+struct SearchItem {
+    title: String,
+    subtitle: String,
+    target: Target,
+    recent_rank: Option<u64>,
+}</code></pre>
+<p class="note">This is a planning sketch, not ready-to-compile source. Explorer-tab <code>token</code> is an ephemeral identifier owned by the worker. Do not pass raw COM pointers between threads or assume UIA runtime identifiers remain valid after Explorer changes.</p>
+<h3>5.2 Search semantics</h3>
+<ol>
+<li><strong>Free text:</strong> match window title and Explorer tab names; rank prefix and contiguous matches first, then fuzzy matches, then recent picks.</li>
+<li><strong>Clearly path-like input:</strong> produce an <em>Open folder</em> action when input begins with <code>~/</code>, <code>./</code>, a drive prefix such as <code>C:/</code>, or a UNC prefix such as <code>//server/share</code>. Do not interpret bare words as paths by default.</li>
+<li><strong>Path conversions:</strong> <code>~/docs</code> → <code>%USERPROFILE%\docs</code>; normalize separators; allow spaces; confirm the resolved target is a directory.</li>
+<li><strong>Relative paths:</strong> for v1, resolve <code>./folder</code> relative to the user’s home directory, and document that choice. Avoid relying on the executable’s current working directory.</li>
+<li><strong>Out of scope:</strong> <code>~otheruser</code>, WSL paths such as <code>/home/alice</code>, and shell expression expansion are not silently translated. <code>//server/share</code> is a Windows UNC path, not a WSL path.</li>
+</ol>
+<h3>5.3 Freshness strategy</h3>
+<p>On popup open, collect top-level window titles synchronously (usually cheap), show those results immediately, and request Explorer tabs from the UIA worker. Merge tab results on arrival. Type-to-filter works entirely on the current snapshot. When a selected target has disappeared, refresh rather than crashing.</p>
+<p>The worker should limit its search to known Explorer windows and the corresponding tab strip—not every accessibility descendant of every app. Debounce repeated refresh requests and avoid blocking the UI if one Explorer instance hangs.</p>
+
+
+<h2 id="phases">6. Implementation steps</h2>
+<h3>6.1 Phase 0 — De-risk Explorer tabs (first)</h3>
+<div class="step"><h4>Step 1. Create a UIA diagnostic command-line binary</h4><p>Before the GUI, write a small Rust spike that initializes COM MTA, enumerates Explorer windows (e.g. <code>CabinetWClass</code> candidates), discovers relevant <code>TabItem</code> names in each window’s accessibility tree, and logs control patterns and tab labels.</p></div>
+<div class="step"><h4>Step 2. Prove inactive-tab selection</h4><p>Test at least two Explorer windows with three tabs each. Attempt <code>SelectionItemPattern::Select</code> on an inactive tab, then foreground its Explorer window. Check duplicate labels and provider changes after moving/closing tabs.</p><p class="gate">Gate M0: either inactive tabs can be selected on your Windows 11 build, or a window-only fallback is explicitly accepted.</p></div>
+
+<h3>6.2 Phase 1 — eframe shell, tray and hotkey</h3>
+<div class="step"><h4>Step 3. Scaffold eframe + egui</h4><pre><code>cargo new quickswitch --bin
+cd quickswitch
+# Add the dependencies from §3.1
+cargo check
+cargo run</code></pre><p>Target <code>x86_64-pc-windows-msvc</code>. Begin with a visible <code>egui::CentralPanel</code> to confirm input and fonts; then change to a hidden root viewport using <code>ViewportBuilder::with_visible(false)</code>. Add <code>#![windows_subsystem = "windows"]</code> only after console-based diagnostics are no longer needed.</p></div>
+<div class="step"><h4>Step 4. Create the native tray icon</h4><p>Build a <code>tray-icon</code> icon and menu on the thread that runs the native event loop. Menu: <strong>Open Search</strong>, checkable <strong>Start with Windows</strong>, <strong>Exit</strong>. Retain the tray handle for the whole process. Clicking the icon opens search.</p></div>
+<div class="step"><h4>Step 5. Register Ctrl + Win + K</h4><p>Use <code>global-hotkey</code> on the event-loop thread, handle registration failure without crashing, and detect keypress events. Register a fallback shortcut only when configured; never silently steal a different shortcut. A tray notice/log should explain conflicts.</p></div>
+<div class="step"><h4>Step 6. Wire the hidden-window wake-up</h4><p>Make hotkey and tray callbacks enqueue a command and call <code>egui::Context::request_repaint</code>. In <code>App::logic</code>, process Open/Hide/Exit. Show with <code>ViewportCommand::Visible(true)</code>; hide with <code>Visible(false)</code>. Verify a hidden window wakes from a hotkey <em>without a repeating timer</em>.</p><p class="gate">Gate M1: process starts with no visible window, responds to hotkey/tray, survives repeated open/hide cycles, and quits only from Exit.</p></div>
+
+<h3>6.3 Phase 2 — Polished search and window switching</h3>
+<div class="step"><h4>Step 7. Implement the egui palette</h4><p>Make a ~680 × 340 logical-pixel, undecorated popup with <code>egui::TextEdit::singleline</code>, a scrollable results list, focus/keyboard controls and status/footer. Implement the interaction from §2.3. On Open, clear stale query if desired, update results, center over the current active monitor, show and focus text input. On Escape/focus loss, hide only.</p></div>
+<div class="step"><h4>Step 8. Enumerate and filter visible windows</h4><p>Use Win32 <code>EnumWindows</code>, <code>IsWindowVisible</code>, <code>GetWindowTextW</code>, ownership/style checks, and optional DWM cloaking filters. Exclude QuickSwitch, untitled helper/tool windows and non-switchable surfaces. Use <code>nucleo-matcher</code> to filter the in-memory snapshot on keystrokes.</p></div>
+<div class="step"><h4>Step 9. Switch and restore Windows windows</h4><p>On Enter: verify the target HWND still exists, restore if minimized, then attempt <code>SetForegroundWindow</code>. Respect Windows foreground restrictions, and show a short error if activation fails. Never keep an invalid HWND as a permanent identity.</p><p class="gate">Gate M2: search title bars in at least ten applications and switch to the correct normal or minimized window; popup closes but tray remains.</p></div>
+
+<h3>6.4 Phase 3 — Explorer tabs and Linux-style paths</h3>
+<div class="step"><h4>Step 10. Connect the UI Automation worker</h4><p>Keep COM UIA on a dedicated long-lived MTA worker. On opening the palette, send Explorer window candidates; return plain <code>SearchItem</code> records asynchronously. Refresh tab targets before invoking them and select via the worker. Do not traverse arbitrary app accessibility trees or block the eframe thread.</p></div>
+<div class="step"><h4>Step 11. Build the path resolver</h4><p>Accept <code>~/projects</code>, <code>C:/dev/work</code>, <code>./notes</code>, and <code>//server/share</code> as <em>path-like</em> input. Expand <code>~</code> to the current Windows home folder, normalize slash separators without breaking UNC prefixes, and resolve <code>./</code> relative to the chosen documented home base. Validate directories before launching.</p></div>
+<div class="step"><h4>Step 12. Open Explorer and test the new-window contract</h4><p>Use argument-safe process invocation, not shell string concatenation. On Windows 11, opening a directory can reuse an existing Explorer window or create a tab depending on user settings and shell behavior. Test that <em>new window</em> actually means a second top-level Explorer window, and do not assume a legacy <code>/n</code> switch guarantees it.</p><p class="gate">Gate M3: your sample tabs search individually; a tab target selects the right Explorer instance; Linux-style path inputs open the correct folder with verified window behavior.</p></div>
+
+<h3>6.5 Phase 4 — Autostart, singleton and lifecycle</h3>
+<div class="step"><h4>Step 13. Implement checkable Start with Windows</h4><p>Read the real app-owned value from <code>HKCU\Software\Microsoft\Windows\CurrentVersion\Run</code>. When enabled, write an <em>absolute quoted path</em> to the installed exe, optionally with <code>--background</code>. When disabled, delete only the <code>QuickSwitch</code> value. Make login startup off by default; keep the value on normal Exit.</p></div>
+<div class="step"><h4>Step 14. Add single-instance and second-launch behavior</h4><p>Use a per-user named mutex plus a simple native IPC wake-up (named pipe or registered message with verified sender) so invoking the executable again opens the running instance instead of creating a second tray icon. Test sign-in races and no-elevation installs.</p></div>
+<div class="step"><h4>Step 15. Implement robust shutdown</h4><p>Explicitly Exit only from the tray or Windows session ending. Unregister the hotkey, drop the tray/menu handles, stop the UIA worker and COM apartment, save settings, then close the root viewport. Handle unexpected Explorer/taskbar restart by verifying the tray icon can recover.</p><p class="gate">Gate M4: user can hide the popup 100 times, open it again, toggle startup, and exit without ghost processes or duplicate icons.</p></div>
+
+<h3>6.6 Phase 5 — Tests, performance, packaging</h3>
+<div class="step"><h4>Step 16. Profile idle vs visible resources</h4><p>Compare <code>glow</code> against default <code>wgpu</code>; measure startup latency, idle working set/commit, visible memory, CPU idle, and shortcut-to-paint response. Aim for near-zero CPU when idle, not zero RAM. No redraw loop while hidden; do not call <code>request_repaint_after</code> repeatedly unless necessary.</p></div>
+<div class="step"><h4>Step 17. Build an installed release</h4><p>Run <code>cargo fmt --check</code>, <code>cargo clippy --all-targets -- -D warnings</code>, <code>cargo test</code>, then <code>cargo build --release</code>. Embed an app icon, install under <code>%LOCALAPPDATA%\Programs\QuickSwitch</code>, and verify Start with Windows after a real sign-out/sign-in. Ship ZIP initially; add installer/signing when distributing.</p><p class="gate">Gate M5: a new user can install, run, switch, open a folder, enable or disable startup, and exit with no admin permissions.</p></div>
+
+<h2 id="startup">7. Tray, startup &amp; lifecycle</h2>
+<h3>7.1 Tray menu specification</h3>
+<pre><code>QuickSwitch
+────────────────────
+Open search                 Ctrl + Win + K
+☐ Start with Windows
+────────────────────
+Exit</code></pre>
+<p>Left-click the tray icon to open search; right-click to display the menu. The checkbox state reflects the <em>actual</em> registry value, not merely the last clicked value. If startup registration fails, leave the checkbox unchanged and display an error.</p>
+<h3>7.2 Startup implementation</h3>
+<p>Store a single string value named <code>QuickSwitch</code> under <code>HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run</code>. Example value data:</p>
+<pre><code>"C:\Users\&lt;user&gt;\AppData\Local\Programs\QuickSwitch\QuickSwitch.exe" --background</code></pre>
+<p><strong>Important:</strong> “Start with Windows” means launch after the user logs in, not before login as a Windows service. It defaults to off. Point the entry at a stable installed location, not <code>target\debug\quickswitch.exe</code>, which may move or be deleted.</p>
+<h3>7.3 Lifecycle state machine</h3>
+<div class="doc-table"><table class="tight"><thead><tr><th>State</th><th>Transition</th><th>Action</th></tr></thead><tbody>
+<tr><td>Starting</td><td>Process begins</td><td>Enforce singleton → create hidden eframe viewport → create tray/hotkey on event-loop thread → Hidden</td></tr>
+<tr><td>Hidden</td><td>Hotkey or tray click</td><td>Snapshot windows → wake App::logic → set Visible(true) → focus TextEdit → Visible</td></tr>
+<tr><td>Visible</td><td>Typing</td><td>Filter snapshot, merge asynchronously discovered tabs → Visible</td></tr>
+<tr><td>Visible</td><td>Esc, focus lost or second hotkey</td><td>App::logic → Visible(false); retain eframe, tray and hotkey → Hidden</td></tr>
+<tr><td>Visible</td><td>Enter on valid result</td><td>Perform target action, then hide popup → Hidden</td></tr>
+<tr><td>Any running</td><td>Tray Exit / Windows session ending</td><td>Drop tray/hotkey resources, stop worker, close root viewport → Exited</td></tr>
+</tbody></table></div>
+
+<h2 id="risks">8. Risks &amp; decisions</h2>
+<div class="doc-table"><table><thead><tr><th>Risk</th><th>Mitigation / explicit decision</th><th>Priority</th></tr></thead><tbody>
+<tr><td>Explorer tabs cannot be discovered or selected reliably on a specific Windows 11 build.</td><td>Run the Phase 0 spike first; use UIA <code>TabItem</code> and <code>SelectionItemPattern</code>; if unsupported, show normal Explorer window titles with a documented tab limitation.</td><td class="amber">High</td></tr>
+<tr><td>Hidden eframe viewport does not wake or focus reliably from the hotkey.</td><td>Use the documented <code>App::logic</code> hook, send commands via event handlers, call <code>ctx.request_repaint()</code>, and explicitly test <code>Visible(true)</code> / focus in a tiny spike. If needed, use the native HWND as a narrow focus fallback without replacing egui.</td><td class="amber">High</td></tr>
+<tr><td>UIA provider hangs or makes the popup sluggish.</td><td>Keep all UIA calls on a separate COM MTA thread. Show window results first, update tabs asynchronously, ignore stale responses.</td><td class="amber">High</td></tr>
+<tr><td>Windows blocks focus stealing.</td><td>Attempt activation only as an explicit user action, restore minimized windows, check <code>SetForegroundWindow</code> result; do not bypass foreground restrictions with simulated Alt or system-wide hooks.</td><td>Medium</td></tr>
+<tr><td>The requested shortcut is already in use or Windows reserves it.</td><td>Check <code>RegisterHotKey</code> return value. Expose a documented fallback shortcut and consider user-configurable bindings in a later minor version.</td><td>Medium</td></tr>
+<tr><td>Explorer opens a tab or reuses an existing window rather than creating a new one.</td><td>Verify actual window count and active path in end-to-end tests. Treat legacy <code>/n</code> claims as unverified for modern Explorer; change strategy if necessary.</td><td class="amber">High</td></tr>
+<tr><td>Elevated apps, protected windows and other virtual desktops behave differently.</td><td>Stay non-elevated; document access limits. Scope v1 to current desktop and normal-integrity windows, with an explicit test for this filtering.</td><td>Medium</td></tr>
+<tr><td>Tray/hotkey event-loop thread assumptions or taskbar restart.</td><td>Exercise the <code>tray-icon</code> backend across Explorer restarts; if it does not restore automatically on the test build, handle recovery with an explicit native Windows integration.</td><td>Medium</td></tr>
+<tr><td>Startup path breaks after moving the binary.</td><td>Write only the installed absolute path; re-register when the setting is re-enabled; use a stable installation directory.</td><td>Medium</td></tr>
+</tbody></table></div>
+
+<h2 id="tests">9. Tests &amp; acceptance</h2>
+<h3>9.1 Automated tests</h3>
+<ul class="checkbox-list">
+<li><strong>T1 — Path parsing:</strong> <code>~/src</code>, <code>C:/src/app</code>, <code>//server/share</code>, <code>./notes</code>, spaces, missing directories and malformed paths.</li>
+<li><strong>T2 — Ranking:</strong> case-insensitive matching, fuzzy typos, empty query, duplicate titles, prefix priority and recency ranking.</li>
+<li><strong>T3 — Settings:</strong> defaults, save/load round-trip, invalid config fallback and startup path quoting.</li>
+<li><strong>T4 — Result lifecycle:</strong> stale <code>HWND</code>, tab disappears while the palette is open, late worker response after palette closes.</li>
+</ul>
+<h3>9.2 Manual Windows 11 acceptance tests</h3>
+<div class="doc-table"><table><thead><tr><th>ID</th><th>Scenario</th><th>Pass criterion</th></tr></thead><tbody>
+<tr><td>A1</td><td>Launch on desktop</td><td>Only one process and one tray icon; hidden eframe viewport and no console.</td></tr>
+<tr><td>A2</td><td>Invoke twice using the hotkey</td><td>Hidden eframe viewport wakes instantly without timer polling; popup appears on active monitor, toggles closed and focuses TextEdit.</td></tr>
+<tr><td>A3</td><td>Search 10+ normal windows</td><td>Titles are current; selection activates the desired window, including minimized windows where permitted.</td></tr>
+<tr><td>A4</td><td>Two Explorer windows, 3+ tabs each</td><td>Inactive tabs appear individually; Enter selects the correct tab, if supported by UIA on this build.</td></tr>
+<tr><td>A5</td><td>Duplicate Explorer tab names</td><td>Context distinguishes results and activation selects the intended window/tab.</td></tr>
+<tr><td>A6</td><td>Open <code>~/Documents</code> and <code>C:/Windows</code></td><td>Correct folders open; confirm new-window behavior on the test build.</td></tr>
+<tr><td>A7</td><td>Unknown folder path</td><td>Shows a non-destructive error; no unexpected process launch.</td></tr>
+<tr><td>A8</td><td>Escape / focus loss</td><td>Popup hides, background process still responds to hotkey.</td></tr>
+<tr><td>A9</td><td>Enable Start with Windows; sign out and in</td><td>One tray process returns without a visible popup.</td></tr>
+<tr><td>A10</td><td>Disable Start with Windows; sign out and in</td><td>No automatic QuickSwitch process.</td></tr>
+<tr><td>A11</td><td>Restart Windows Explorer / taskbar</td><td>Tray icon is restored and hotkey continues working.</td></tr>
+<tr><td>A12</td><td>Run executable twice; choose Exit</td><td>No duplicate residents; Exit ends the actual process and removes the icon.</td></tr>
+<tr><td>A13</td><td>Test on dual monitors and 125–200% DPI</td><td>Popup appears in the intended monitor's usable bounds, with readable egui controls.</td></tr>
+<tr><td>A14</td><td>Idle for 15 minutes, then hotkey</td><td>Nearly idle CPU; no periodic rendering; egui context wakes, popup appears promptly and responds to input.</td></tr>
+<tr><td>A15</td><td>Choose glow vs wgpu on test hardware</td><td>Document measured release size, hidden working set, startup latency and UI responsiveness for both renderers.</td></tr>
+</tbody></table></div>
+<p class="note">Suggested measured goals (not guarantees): popup appears within ~150 ms from the hotkey on a typical machine, free-text filtering feels instantaneous, and UIA scanning does not block typing. Measure rather than promise fixed UIA completion times.</p>
+
+<h2 id="release">10. Packaging &amp; release</h2>
+<h3>10.1 Release workflow</h3>
+<ol>
+<li><strong>Step 1.</strong> Build and test on Windows: <code>cargo fmt --check</code>, <code>cargo clippy --all-targets -- -D warnings</code>, <code>cargo test</code>.</li>
+<li><strong>Step 2.</strong> Create the optimized executable: <code>cargo build --release</code>.</li>
+<li><strong>Step 3.</strong> Embed a real tray icon, matching egui app icon and version metadata; sign the binary if distributing publicly.</li>
+<li><strong>Step 4.</strong> Ship a ZIP or tiny per-user installer to put <code>QuickSwitch.exe</code> at a stable path under <code>%LOCALAPPDATA%\Programs\QuickSwitch</code>.</li>
+<li><strong>Step 5.</strong> Do not enable startup during installation without the user's choice. If uninstalling, remove the app-owned <code>Run</code> entry and files.</li>
+</ol>
+<h3>10.2 Release gates</h3>
+<div class="doc-table"><table class="tight"><thead><tr><th>Milestone</th><th>Definition of done</th></tr></thead><tbody>
+<tr><td><strong>M0 · Technical spike</strong></td><td>Can identify/select Explorer tabs or have a deliberate fallback decision.</td></tr>
+<tr><td><strong>M1 · eframe tray shell</strong></td><td>Persistent hidden eframe process, native tray, working hotkey, reliable wake-up and Exit.</td></tr>
+<tr><td><strong>M2 · egui window switcher</strong></td><td>Centered egui palette, fuzzy title search, activate selected window.</td></tr>
+<tr><td><strong>M3 · Complete search</strong></td><td>Explorer-tab results and path-open action integrated and verified.</td></tr>
+<tr><td><strong>M4 · Lifecycle</strong></td><td>Optional login startup, single instance, graceful cleanup and hidden-loop wake-up.</td></tr>
+<tr><td><strong>M5 · Usable release</strong></td><td>Renderer profiling, diagnostics, tests, packaging and signed binaries when distributing.</td></tr>
+</tbody></table></div>
+<div class="callout"><strong>Recommended next coding task:</strong> implement <em>M0</em> as a 50–100-line diagnostic program first. Explorer-tab selection is the most uncertain requirement; proving it early prevents building a polished UI around a capability that may not be available on your Windows build.</div>
+
+<h2 id="references">11. References</h2>
+<p>The architecture and risk notes above draw on official Windows API documentation and current Rust crate APIs. The interactive popup is a browser-only prototype:</p>
+<ol>
+<li><a href="https://docs.rs/eframe/0.37.0/eframe/trait.App.html" target="_blank" rel="noopener">eframe App 0.37 — docs.rs</a> (<code>ui</code> and hidden-window <code>logic</code> lifecycle).</li>
+<li><a href="https://docs.rs/egui/0.37.0/egui/viewport/struct.ViewportBuilder.html" target="_blank" rel="noopener">egui ViewportBuilder 0.37 — docs.rs</a> (hidden, taskbar-less root viewport).</li>
+<li><a href="https://docs.rs/egui/0.37.0/egui/viewport/enum.ViewportCommand.html" target="_blank" rel="noopener">egui ViewportCommand 0.37 — docs.rs</a> (<code>Visible</code>, <code>Focus</code>, <code>RequestPaintWhileHidden</code>).</li>
+<li><a href="https://docs.rs/crate/tray-icon/0.26.1" target="_blank" rel="noopener">tray-icon 0.26.1 — docs.rs</a> (Windows system tray integration).</li>
+<li><a href="https://docs.rs/global-hotkey/0.10.0/global_hotkey/" target="_blank" rel="noopener">global-hotkey 0.10 — docs.rs</a> (global shortcut and event-thread requirements).</li>
+<li><a href="https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-registerhotkey" target="_blank" rel="noopener">RegisterHotKey — Microsoft Learn</a> (system-wide hotkey and conflict behavior).</li>
+<li><a href="https://learn.microsoft.com/en-us/windows/win32/api/shellapi/ns-shellapi-notifyicondataw" target="_blank" rel="noopener">NOTIFYICONDATAW — Microsoft Learn</a> (system tray icon structure and callbacks).</li>
+<li><a href="https://learn.microsoft.com/en-us/windows/win32/shell/taskbar" target="_blank" rel="noopener">The Taskbar — Microsoft Learn</a> (<code>TaskbarCreated</code> icon recovery).</li>
+<li><a href="https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-enumwindows" target="_blank" rel="noopener">EnumWindows — Microsoft Learn</a> (top-level window enumeration).</li>
+<li><a href="https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setforegroundwindow" target="_blank" rel="noopener">SetForegroundWindow — Microsoft Learn</a> (foreground-activation limits).</li>
+<li><a href="https://learn.microsoft.com/en-us/windows/win32/winauto/uiauto-supporttabitemcontroltype" target="_blank" rel="noopener">TabItem Control Type — Microsoft Learn</a> (<code>SelectionItemPattern</code> contract).</li>
+<li><a href="https://learn.microsoft.com/en-us/windows/win32/winauto/uiauto-threading" target="_blank" rel="noopener">Understanding UI Automation Threading Issues — Microsoft Learn</a> (separate MTA worker).</li>
+<li><a href="https://learn.microsoft.com/en-us/windows/win32/setupapi/run-and-runonce-registry-keys" target="_blank" rel="noopener">Run and RunOnce Registry Keys — Microsoft Learn</a> (per-user login startup).</li>
+<li><a href="https://docs.rs/crate/windows/latest" target="_blank" rel="noopener">windows crate — docs.rs</a> (Rust Windows API projection).</li>
+<li><a href="https://docs.rs/nucleo-matcher/latest/nucleo_matcher/" target="_blank" rel="noopener">nucleo-matcher — docs.rs</a> (fuzzy ranking).</li>
+</ol>
+<p class="small muted">Document scope: a build plan and self-contained interactive popup mockup, not a compiled Rust application or a claim that Explorer-tab behavior has been tested on the target machine. Last prepared: 10 November 2026.</p>
+</main>
+</div>
+<script>
+(function(){
+ const root=document.documentElement,btn=document.getElementById('docTheme');
+ btn.addEventListener('click',()=>{const light=root.dataset.theme!=='light';if(light)root.dataset.theme='light';else delete root.dataset.theme;btn.textContent=light?'Dark mode':'Light mode';});
+})();
+(function(){
+ const links=Array.from(document.querySelectorAll('nav.doc-toc a'));
+ if(!links.length||!('IntersectionObserver' in window))return;
+ const byId=new Map(links.map(a=>[a.getAttribute('href').slice(1),a]));
+ const io=new IntersectionObserver(entries=>{entries.forEach(e=>{if(!e.isIntersecting)return;const a=byId.get(e.target.id);if(!a)return;links.forEach(l=>l.classList.toggle('is-current',l===a));});},{rootMargin:'-15% 0px -75% 0px'});
+ byId.forEach((_,id)=>{const el=document.getElementById(id);if(el)io.observe(el);});
+})();
+(function(){
+ const nav=document.querySelector('nav.doc-toc'),wide=document.querySelectorAll('.doc-wide');
+ if(!nav||!wide.length||!('IntersectionObserver' in window))return;
+ const onScreen=new Set();
+ const io=new IntersectionObserver(entries=>{entries.forEach(e=>{if(e.isIntersecting)onScreen.add(e.target);else onScreen.delete(e.target);});nav.classList.toggle('is-hidden',onScreen.size>0);});
+ wide.forEach(el=>io.observe(el));
+ const narrow=matchMedia('(max-width:900px)');
+ const btn=Object.assign(document.createElement('button'),{type:'button',className:'toc-btn',textContent:'☰',hidden:true});
+ btn.setAttribute('aria-label','Contents');btn.setAttribute('aria-expanded','false');
+ const panel=Object.assign(document.createElement('div'),{className:'toc-panel',hidden:true});
+ document.body.append(btn,panel);
+ const close=(restore=false)=>{panel.hidden=true;btn.setAttribute('aria-expanded','false');if(restore)btn.focus();};
+ const open=()=>{panel.replaceChildren(...[...nav.querySelectorAll('a[href^="#"]')].map(a=>a.cloneNode(true)));panel.hidden=false;btn.setAttribute('aria-expanded','true');};
+ const sync=()=>{btn.hidden=!(nav.classList.contains('is-hidden')&&!narrow.matches);if(btn.hidden)close();};
+ btn.addEventListener('click',()=>panel.hidden?open():close());
+ panel.addEventListener('click',e=>{if(e.target.closest('a'))close();});
+ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!panel.hidden){e.preventDefault();close(true);}});
+ document.addEventListener('click',e=>{if(!panel.hidden&&!panel.contains(e.target)&&e.target!==btn)close();});
+ new MutationObserver(sync).observe(nav,{attributes:true,attributeFilter:['class']});
+ narrow.addEventListener('change',sync);sync();
+})();
+
+(function(){
+ const desktop=document.getElementById('demoDesktop'); if(!desktop)return;
+ const popup=document.getElementById('demoPalette'), field=document.getElementById('demoInput'), results=document.getElementById('demoResults');
+ const trayMenu=document.getElementById('demoTrayMenu'), count=document.getElementById('demoCount'), toast=document.getElementById('demoToast');
+ const samples=[
+  {type:'tab',title:'projects',sub:'File Explorer · Projects → Work · inactive tab',icon:'📁'},
+  {type:'window',title:'my-project — Visual Studio Code',sub:'Visual Studio Code · open window',icon:'⌘'},
+  {type:'tab',title:'Downloads',sub:'File Explorer · This PC → Downloads · inactive tab',icon:'📁'},
+  {type:'window',title:'README.md — Notepad',sub:'Notepad · open window',icon:'▤'},
+  {type:'tab',title:'Documents',sub:'File Explorer · This PC → Documents · active tab',icon:'📁'},
+  {type:'window',title:'Documentation — Microsoft Edge',sub:'Microsoft Edge · open window',icon:'🌐'},
+  {type:'tab',title:'src',sub:'File Explorer · D: → Dev → src · inactive tab',icon:'📁'},
+ ];
+ let visible=false, active=0, current=[], running=true, toastTimer;
+ const normalized=s=>s.toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim();
+ const score=(text,q)=>{const t=normalized(text),k=normalized(q);if(!k)return 20;if(t.startsWith(k))return 150-k.length;if(t.includes(k))return 100-k.length;let p=-1,gaps=0;for(const c of k){const n=t.indexOf(c,p+1);if(n<0)return -1;gaps+=n-p-1;p=n;}return 55-gaps;};
+ function showToast(message){toast.textContent=message;toast.classList.add('is-visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>toast.classList.remove('is-visible'),2900);}
+ function isPath(q){return /^(~[\\/]|\.[\\/]|[a-zA-Z]:[\\/]|[\\/]{2}[^\\/]+)/.test(q.trim());}
+ function render(){const q=field.value.trim();if(isPath(q)){
+  current=[{type:'path',title:'Open '+q.replaceAll('\\','/'),sub:'New File Explorer window · path preview only',icon:'↗'}];
+ }else{current=samples.map(item=>({...item,rank:score(item.title+' '+item.sub,q)})).filter(x=>x.rank>=0).sort((a,b)=>b.rank-a.rank).slice(0,7);}
+ active=Math.min(Math.max(active,0),Math.max(0,current.length-1));count.textContent=current.length+(current.length===1?' result':' results');results.replaceChildren();
+ if(!current.length){let el=document.createElement('div');el.className='demo-empty';el.textContent='No matching windows or Explorer tabs';results.append(el);return;}
+ current.forEach((item,i)=>{const el=document.createElement('button');el.type='button';el.className='demo-result'+(i===active?' is-selected':'');el.setAttribute('role','option');el.setAttribute('aria-selected',String(i===active));el.innerHTML='<span class="demo-icon"></span><span class="demo-result-body"><div class="demo-result-title"></div><div class="demo-result-sub"></div></span><span class="demo-kind"></span>';
+ el.querySelector('.demo-icon').textContent=item.icon;el.querySelector('.demo-result-title').textContent=item.title;el.querySelector('.demo-result-sub').textContent=item.sub;el.querySelector('.demo-kind').textContent=item.type==='tab'?'Explorer tab':item.type==='window'?'Window':'Open folder';
+ el.addEventListener('mousemove',()=>{if(active!==i){active=i;[...results.children].forEach((n,j)=>{n.classList.toggle('is-selected',j===i);n.setAttribute('aria-selected',String(j===i));});}});
+ el.addEventListener('click',()=>choose(i));results.append(el);});
+ }
+ function openDemo(q){if(!running){showToast('Simulation exited. Reload this page to restart.');return;}visible=true;trayMenu.hidden=true;popup.classList.remove('demo-hidden');if(typeof q==='string')field.value=q;active=0;render();field.focus({preventScroll:true});field.select();}
+ function hideDemo(){visible=false;popup.classList.add('demo-hidden');trayMenu.hidden=true;field.blur();}
+ function choose(i){if(!current[i])return;const item=current[i];hideDemo();showToast(item.type==='path'?'Simulation: would open Explorer at '+field.value:item.type==='tab'?'Simulation: would select Explorer tab “'+item.title+'”':'Simulation: would activate “'+item.title+'”');}
+ document.getElementById('demoOpen').addEventListener('click',()=>openDemo(''));
+ document.getElementById('demoProjects').addEventListener('click',()=>openDemo('projects'));
+ document.getElementById('demoPath').addEventListener('click',()=>openDemo('~/Documents'));
+ document.getElementById('demoTray').addEventListener('click',()=>{trayMenu.hidden=!trayMenu.hidden;});
+ document.getElementById('demoMenuOpen').addEventListener('click',()=>openDemo(''));
+ document.getElementById('demoStartup').addEventListener('change',e=>showToast('Simulation: Start with Windows '+(e.target.checked?'enabled':'disabled')));
+ document.getElementById('demoExit').addEventListener('click',()=>{running=false;hideDemo();document.getElementById('demoTray').style.opacity='.35';showToast('Simulation: QuickSwitch exited. Reload the page to restart.');});
+ field.addEventListener('input',()=>{active=0;render();});
+ field.addEventListener('keydown',e=>{if(e.key==='ArrowDown'){e.preventDefault();if(current.length){active=(active+1)%current.length;render();results.children[active]?.scrollIntoView({block:'nearest'});}}else if(e.key==='ArrowUp'){e.preventDefault();if(current.length){active=(active-1+current.length)%current.length;render();results.children[active]?.scrollIntoView({block:'nearest'});}}else if(e.key==='Enter'){e.preventDefault();choose(active);}else if(e.key==='Escape'){e.preventDefault();e.stopPropagation();hideDemo();}});
+ document.addEventListener('keydown',e=>{if(e.key==='k'&&e.ctrlKey&&(e.metaKey||e.shiftKey)&&!e.altKey){e.preventDefault();visible?hideDemo():openDemo('');}else if(e.key==='Escape'&&visible){hideDemo();}});
+ desktop.addEventListener('pointerdown',e=>{if(visible&&!popup.contains(e.target)&&!e.target.closest('.demo-controls')&&!e.target.closest('.demo-traymenu')&&!e.target.closest('.demo-tray'))hideDemo();if(!trayMenu.hidden&&!trayMenu.contains(e.target)&&!e.target.closest('.demo-tray'))trayMenu.hidden=true;});
+ popup.classList.add('demo-hidden');render();
+})();
+</script>
+</body>
+</html>

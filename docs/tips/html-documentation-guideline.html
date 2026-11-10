@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HTML documentation guideline</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #12161c; --fg: #e3e8ef; --muted: #9aa5b4; --line: #2a323d; --soft: #1a2029; --accent: #7aa2ff;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #ffffff; --fg: #1c2430; --muted: #5b6675; --line: #dfe4ea; --soft: #f4f6f9; --accent: #1d4ed8;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Arial, sans-serif; }
+
+.doc-top { max-width: 1400px; margin: 0 auto; padding: 14px 20px 0; display: flex; justify-content: flex-end; }
+#docTheme { font: inherit; font-size: 14px; padding: 4px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg); color: var(--muted); cursor: pointer; }
+#docTheme:hover { color: var(--fg); }
+
+.doc-layout { --toc-w: 220px; --toc-gap: 44px; max-width: 1400px; margin: 0 auto; padding: 14px 20px 120px; display: grid; grid-template-columns: var(--toc-w) minmax(0, 1fr); gap: var(--toc-gap); }
+nav.doc-toc { position: sticky; top: 24px; align-self: start; max-height: calc(100vh - 48px); overflow: auto; font-size: 14px; transition: opacity .2s, visibility .2s; }
+nav.doc-toc.is-hidden { opacity: 0; visibility: hidden; }
+nav.doc-toc p { font-weight: 600; margin: 0 0 10px; }
+nav.doc-toc a { display: block; padding: 5px 10px; color: var(--muted); text-decoration: none; border-left: 2px solid var(--line); }
+nav.doc-toc a:hover { color: var(--fg); }
+nav.doc-toc a.is-current { color: var(--accent); border-left-color: var(--accent); font-weight: 600; }
+@media (max-width: 900px) {
+  .doc-layout { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  nav.doc-toc { position: static; max-height: none; }
+  nav.doc-toc.is-hidden { opacity: 1; visibility: visible; }
+}
+
+main { min-width: 0; }
+main > * { max-width: 780px; }
+main > .doc-wide { max-width: none; overflow-x: auto; margin-left: calc(-1 * (var(--toc-w) + var(--toc-gap))); }
+@media (max-width: 900px) { main > .doc-wide { margin-left: 0; } }
+h1 { font-size: 28px; line-height: 1.25; margin: 0 0 6px; }
+h2 { font-size: 22px; margin: 44px 0 10px; scroll-margin-top: 16px; }
+h3 { font-size: 17px; margin: 24px 0 6px; }
+ul { padding-left: 22px; } li { margin: 4px 0; }
+a { color: var(--accent); }
+code { font: 14px/1.4 Consolas, "Cascadia Mono", ui-monospace, monospace; background: var(--soft); padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--soft); padding: 10px 12px; border-radius: 6px; font: 13.5px/1.5 Consolas, "Cascadia Mono", ui-monospace, monospace; overflow-x: auto; margin: 10px 0 14px; }
+pre code { background: none; padding: 0; font: inherit; }
+</style>
+</head>
+<body>
+<div class="doc-top"><button type="button" id="docTheme">Light mode</button></div>
+<div class="doc-layout">
+<nav class="doc-toc" aria-label="Contents">
+  <p>Contents</p>
+  <a href="#summary">1. Summary</a>
+  <a href="#toc">2. Table of contents</a>
+  <a href="#numbers">3. Section and step numbers</a>
+  <a href="#theme">4. Dark mode and the toggle</a>
+  <a href="#demos">5. Demos and diagrams</a>
+  <a href="#wide">6. Wide demos</a>
+  <a href="#tables">7. Tables</a>
+</nav>
+<main>
+<h1>HTML documentation guideline</h1>
+
+<h2 id="summary">1. Summary</h2>
+<ul>
+  <li>The first section of a document is a brief summary.</li>
+  <li>A table of contents sits at the side and follows the scrolling.</li>
+  <li>Sections and steps carry visible numbers, so a place in the document can be referred to by number.</li>
+  <li>The page is dark, with a light mode toggle at the top.</li>
+  <li>Demos, animations and diagrams are included when the user asks for them.</li>
+  <li>A demo goes wide when it needs the room, and stays wide on a small screen.</li>
+  <li>While wide blocks hide the table of contents, a small contents button at the far left of the window brings it back on demand.</li>
+  <li>Every table has a sticky header, so its column names stay in view while its rows scroll.</li>
+</ul>
+
+<h2 id="toc">2. Table of contents</h2>
+<ul>
+  <li>It sits at the side of the page and stays in view while the page scrolls.</li>
+  <li>It lists the sections and marks the one being read.</li>
+  <li>Every section heading it links to has an <code>id</code>.</li>
+</ul>
+<pre><code>nav.doc-toc { position: sticky; top: 24px; align-self: start; }</code></pre>
+<pre><code>const links = Array.from(document.querySelectorAll('nav.doc-toc a'));
+const byId = new Map(links.map((a) =&gt; [a.getAttribute('href').slice(1), a]));
+const io = new IntersectionObserver((entries) =&gt; {
+  entries.forEach((e) =&gt; {
+    if (!e.isIntersecting) return;
+    links.forEach((l) =&gt; l.classList.toggle('is-current', l === byId.get(e.target.id)));
+  });
+}, { rootMargin: '-15% 0px -75% 0px' });
+byId.forEach((_, id) =&gt; io.observe(document.getElementById(id)));</code></pre>
+
+<h2 id="numbers">3. Section and step numbers</h2>
+<p>Show section and step numbers in the text itself, so a place in the document can be referred to by number ("§3.2", "step 4").</p>
+<ul>
+  <li>Number the headings (<code>1.</code>, <code>1.1</code>, <code>2.</code>) and put the same numbers in the table of contents.</li>
+  <li>Number the steps of any procedure or implementation sequence. Don't use plain bullets for steps.</li>
+  <li>The number must be visible to the reader, not only present as an <code>id</code> or produced by a CSS counter that a copy and paste would drop.</li>
+</ul>
+<pre><code>&lt;h2 id="numbers"&gt;3. Section and step numbers&lt;/h2&gt;
+&lt;h3&gt;3.1 Headings&lt;/h3&gt;</code></pre>
+
+<h2 id="theme">4. Dark mode and the toggle</h2>
+<ul>
+  <li>The page opens in dark mode.</li>
+  <li>A toggle at the top of the page switches to light mode and back.</li>
+  <li>Colours are CSS variables, so the toggle only swaps one set for the other.</li>
+</ul>
+<pre><code>:root                     { --bg: #12161c; --fg: #e3e8ef; }
+:root[data-theme="light"] { --bg: #ffffff; --fg: #1c2430; }</code></pre>
+<pre><code>button.addEventListener('click', () =&gt; {
+  const root = document.documentElement;
+  if (root.dataset.theme === 'light') delete root.dataset.theme;
+  else root.dataset.theme = 'light';
+});</code></pre>
+
+<h2 id="demos">5. Demos and diagrams</h2>
+<ul>
+  <li>JavaScript, CSS or SVG demos, animations and diagrams go in when the user asks for them.</li>
+  <li>They are written into the document itself.</li>
+</ul>
+
+<h2 id="wide">6. Wide demos</h2>
+<p>Examples and demos must stay readable. A demo squeezed into the text column ends up with small labels, scaled-down SVGs or a cramped layout.</p>
+<h3>6.1 The rule</h3>
+<ul>
+  <li>Prose stays in the normal reading column.</li>
+  <li>When an example or demo needs more room, that one block breaks out into a wide landscape format.</li>
+  <li>The normal column returns straight after the block.</li>
+  <li>Only the blocks that need the width go wide. Don't widen the whole page.</li>
+  <li>The goal is to preserve text and element size. Give the demo more width; don't scale it down to fit.</li>
+  <li>On a small screen the demo <strong>stays wide</strong>. It does not shrink to the screen. The reader scrolls it sideways.</li>
+  <li>While a wide block is on screen, the table of contents is hidden, so the block can use the space it occupies. It comes back once the block has scrolled away.</li>
+  <li>While the contents are hidden, a small round contents button floats at the far left of the window, where the contents normally are. A click opens them in a panel beside it (§6.4). A page made mostly of wide blocks would otherwise have no contents most of the time.</li>
+</ul>
+<h3>6.2 How</h3>
+<p>Mark the block with a class. It grows left over the space of the table of contents and right to the edge of the layout. An inner element carries the width the demo needs.</p>
+<pre><code>&lt;p&gt;Text in the normal column.&lt;/p&gt;
+
+&lt;figure class="doc-wide"&gt;
+  &lt;div class="doc-wide-in"&gt;
+    &lt;!-- wide demo / example --&gt;
+  &lt;/div&gt;
+&lt;/figure&gt;
+
+&lt;p&gt;Back in the normal column.&lt;/p&gt;</code></pre>
+<pre><code>.doc-layout      { --toc-w: 220px; --toc-gap: 44px;
+                   grid-template-columns: var(--toc-w) minmax(0, 1fr); gap: var(--toc-gap); }
+main &gt; *         { max-width: 780px; }                   /* the reading column */
+main &gt; .doc-wide { max-width: none; overflow-x: auto;    /* the block leaves it… */
+                   margin-left: calc(-1 * (var(--toc-w) + var(--toc-gap))); }  /* …and takes the contents' space */
+.doc-wide-in     { min-width: 1100px; }                  /* as wide as the demo needs */
+
+nav.doc-toc           { transition: opacity .2s, visibility .2s; }
+nav.doc-toc.is-hidden { opacity: 0; visibility: hidden; }</code></pre>
+<pre><code>const toc = document.querySelector('nav.doc-toc');
+const onScreen = new Set();
+const io = new IntersectionObserver((entries) =&gt; {
+  entries.forEach((e) =&gt; { if (e.isIntersecting) onScreen.add(e.target); else onScreen.delete(e.target); });
+  toc.classList.toggle('is-hidden', onScreen.size &gt; 0);
+});
+document.querySelectorAll('.doc-wide').forEach((el) =&gt; io.observe(el));</code></pre>
+<p>Where the table of contents is not at the side (a narrow screen, where it sits above the text), the block has no left margin and the contents are not hidden.</p>
+<h3>6.3 Things to check</h3>
+<ul>
+  <li><strong>Table of contents.</strong> The wide block must never sit on top of visible contents. They are hidden for as long as any part of a wide block is on screen.</li>
+  <li><strong>Clipping.</strong> No ancestor of the block may have <code>overflow: hidden</code> or a <code>max-width</code> that clips it.</li>
+  <li><strong>Small screens.</strong> The demo keeps its width and scrolls sideways inside its own block. The text around it does not move.</li>
+  <li><strong>Fixed sizes inside.</strong> Set font sizes and control sizes in the demo in px or rem, so the extra width goes to layout and nothing is scaled up or down. For an SVG, widen the <code>viewBox</code> to suit the landscape shape; don't stretch a narrow one.</li>
+  <li><strong>Class name.</strong> Prefix it (<code>doc-wide</code>) so it can't collide with a global rule such as <code>.wide</code>.</li>
+  <li><strong>Margin shorthand.</strong> A later rule of the same weight that sets <code>margin</code> on the block, such as <code>figure.doc-wide { margin: 18px 0 22px; }</code>, resets the negative left margin, and the block quietly stops breaking out: it stays in the column and only runs over to the right. Set <code>margin-top</code> and <code>margin-bottom</code> instead.</li>
+</ul>
+
+<h3>6.4 The contents button</h3>
+<ol>
+  <li><strong>When it shows.</strong> Only while the side contents are hidden by a wide block (<code>nav.doc-toc.is-hidden</code>), and never where the contents sit above the text (a narrow screen), since they are not hidden there.</li>
+  <li><strong>Where.</strong> Fixed at the far left of the window, centred vertically, on the side the contents normally occupy. It is small (about 34&nbsp;px) and round, so it covers almost nothing of a wide block.</li>
+  <li><strong>What a click does.</strong> It opens a panel beside the button with the same links as the side contents, the section being read marked. Build the panel from the side contents each time it opens, so the mark is current.</li>
+  <li><strong>Closing.</strong> Choosing a link, pressing Escape or clicking outside the panel closes it. Moving back to a place where the contents show again hides the button and closes the panel.</li>
+  <li><strong>Accessible.</strong> A real <code>&lt;button&gt;</code> with <code>aria-label="Contents"</code> and <code>aria-expanded</code>; focus returns to it on Escape.</li>
+</ol>
+<pre><code>.toc-btn   { position: fixed; left: 10px; top: 50%; transform: translateY(-50%); z-index: 50;
+             width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line);
+             background: var(--soft); color: var(--muted); cursor: pointer; }
+.toc-panel { position: fixed; left: 52px; top: 50%; transform: translateY(-50%); z-index: 51;
+             width: min(300px, calc(100vw - 80px)); max-height: 80vh; overflow: auto;
+             background: var(--soft); border: 1px solid var(--line); border-radius: 8px; padding: 10px 8px; }
+.toc-btn[hidden], .toc-panel[hidden] { display: none; }   /* a display rule would otherwise beat [hidden] */</code></pre>
+<pre><code>const nav = document.querySelector('nav.doc-toc');
+const narrow = matchMedia('(max-width: 900px)');
+const btn = Object.assign(document.createElement('button'), { type: 'button', className: 'toc-btn', textContent: '\u2630', hidden: true });
+btn.setAttribute('aria-label', 'Contents'); btn.setAttribute('aria-expanded', 'false');
+const panel = Object.assign(document.createElement('div'), { className: 'toc-panel', hidden: true });
+document.body.append(btn, panel);
+const close = () =&gt; { panel.hidden = true; btn.setAttribute('aria-expanded', 'false'); };
+const open = () =&gt; {
+  panel.replaceChildren(...[...nav.querySelectorAll('a[href^="#"]')].map((a) =&gt; a.cloneNode(true)));
+  panel.hidden = false; btn.setAttribute('aria-expanded', 'true');
+};
+const sync = () =&gt; { btn.hidden = !(nav.classList.contains('is-hidden') &amp;&amp; !narrow.matches); if (btn.hidden) close(); };
+btn.addEventListener('click', () =&gt; (panel.hidden ? open() : close()));
+panel.addEventListener('click', (e) =&gt; { if (e.target.closest('a')) close(); });
+document.addEventListener('keydown', (e) =&gt; { if (e.key === 'Escape' &amp;&amp; !panel.hidden) { close(); btn.focus(); } });
+document.addEventListener('click', (e) =&gt; { if (!panel.hidden &amp;&amp; !panel.contains(e.target) &amp;&amp; e.target !== btn) close(); });
+new MutationObserver(sync).observe(nav, { attributes: true, attributeFilter: ['class'] });
+narrow.addEventListener('change', sync);
+sync();</code></pre>
+
+<h2 id="tables">7. Tables</h2>
+<h3>7.1 The rule</h3>
+<ul>
+  <li>Every table has a sticky header: the row of column names stays at the top of the table while its rows scroll under it. A reader halfway down a long table still knows what each column is.</li>
+  <li>Explain the columns that aren't plain words (abbreviations, statistics, slice names) in the text next to the table.</li>
+</ul>
+<h3>7.2 How</h3>
+<p>The header sticks to the top of the window while the page scrolls. So on a normal screen nothing between the table and the page may scroll. On a narrow screen, where the table has to scroll sideways, its wrapper becomes a scrolling box of its own and the header sticks to the top of that box instead.</p>
+<pre><code>&lt;div class="doc-table"&gt;
+  &lt;table&gt;
+    &lt;thead&gt;&lt;tr&gt;&lt;th&gt;…&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;
+    &lt;tbody&gt;…&lt;/tbody&gt;
+  &lt;/table&gt;
+&lt;/div&gt;</code></pre>
+<pre><code>.doc-table          { overflow: visible; }                 /* the header sticks to the window */
+.doc-table thead th { position: sticky; top: 0; z-index: 2;
+                      background: var(--soft); box-shadow: 0 1px 0 var(--line); }
+@media (max-width: 900px) {                                /* sideways scrolling: a box of its own */
+  .doc-table        { max-height: 80vh; overflow: auto; }
+}</code></pre>
+<h3>7.3 Things to check</h3>
+<ul>
+  <li><strong>No scrolling ancestor.</strong> A sticky header sticks to its nearest ancestor that scrolls. A wrapper with <code>overflow-x: auto</code> (the usual guard for a wide table) counts as one even though it never scrolls up or down. The header then sticks inside a box that doesn't move, which looks exactly like no sticky header. The same goes for any <code>overflow</code> other than <code>visible</code> (or <code>clip</code>) on the wrapper, the section or the main column. An inner scrolling box only helps for a table taller than the box: a short table in one never sticks while the page scrolls.</li>
+  <li><strong>Opaque header.</strong> The header cells need a solid background, or the rows show through them as they scroll past. A border on a sticky cell scrolls away with the table; draw the line under the header with a <code>box-shadow</code> instead.</li>
+  <li><strong>Wide tables.</strong> A table with many columns goes wide like a demo (§6). The same wrapper scrolls it sideways on a small screen.</li>
+</ul>
+</main>
+</div>
+
+<script>
+/* light mode toggle */
+(function () {
+  const root = document.documentElement;
+  const btn = document.getElementById('docTheme');
+  btn.addEventListener('click', () => {
+    const toLight = root.dataset.theme !== 'light';
+    if (toLight) root.dataset.theme = 'light'; else delete root.dataset.theme;
+    btn.textContent = toLight ? 'Dark mode' : 'Light mode';
+  });
+})();
+
+/* table of contents: mark the section being read */
+(function () {
+  const links = Array.from(document.querySelectorAll('nav.doc-toc a'));
+  if (!links.length || !('IntersectionObserver' in window)) return;
+  const byId = new Map(links.map((a) => [a.getAttribute('href').slice(1), a]));
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach((e) => {
+      if (!e.isIntersecting) return;
+      const a = byId.get(e.target.id); if (!a) return;
+      links.forEach((l) => l.classList.toggle('is-current', l === a));
+    });
+  }, { rootMargin: '-15% 0px -75% 0px' });
+  byId.forEach((_, id) => { const el = document.getElementById(id); if (el) io.observe(el); });
+})();
+
+/* table of contents: hidden while a wide block is on screen */
+(function () {
+  const toc = document.querySelector('nav.doc-toc');
+  const wide = document.querySelectorAll('.doc-wide');
+  if (!toc || !wide.length || !('IntersectionObserver' in window)) return;
+  const onScreen = new Set();
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach((e) => { if (e.isIntersecting) onScreen.add(e.target); else onScreen.delete(e.target); });
+    toc.classList.toggle('is-hidden', onScreen.size > 0);
+  });
+  wide.forEach((el) => io.observe(el));
+})();
+</script>
+</body>
+</html>
