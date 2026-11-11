@@ -4,6 +4,8 @@ version = "0.3.0"
 edition = "2024"
 description = "Spotlight-style window, Explorer tab and folder switcher for Windows 11"
 rust-version = "1.88"
+license = "MIT"
+repository = "https://github.com/ntoussaintdev/quickswitch"
 build = "build.rs"
 
 [lib]

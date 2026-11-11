@@ -12,6 +12,8 @@ This is the developer README. The packages ship [`packaging/README.txt`](packagi
 
 ## 1. Install
 
+**Download the latest release:** [Installer (QuickSwitch-setup.exe)](https://github.com/ntoussaintdev/quickswitch/releases/latest/download/QuickSwitch-setup.exe) · [Portable (QuickSwitch-portable.zip)](https://github.com/ntoussaintdev/quickswitch/releases/latest/download/QuickSwitch-portable.zip) · [All releases](https://github.com/ntoussaintdev/quickswitch/releases)
+
 Pick one:
 
 | Package | What it does |
@@ -119,6 +121,17 @@ The default renderer is glow (OpenGL). The `wgpu` feature switches to wgpu (Dire
 
 `scripts/make_icon.py` regenerates `resources/` (needs Pillow).
 
+### 5.1 Releases
+
+GitHub Actions builds every release. `CI` runs fmt, clippy and tests on each push to `main` and on pull requests. To publish a release, bump `version` in `Cargo.toml`, commit, then push a matching tag:
+
+```powershell
+git tag v0.3.0
+git push origin v0.3.0
+```
+
+The `Release` workflow runs `scripts/package.ps1` on Windows and attaches the installer and portable ZIP (versioned, plus unversioned copies for the stable download links above) to a GitHub Release.
+
 ## 6. Code map
 
 | Path | Role |
@@ -134,3 +147,7 @@ The default renderer is glow (OpenGL). The `wgpu` feature switches to wgpu (Dire
 | `packaging/QuickSwitch.iss` | Inno Setup installer. |
 | `packaging/README.txt` | The README shipped to users (installer and portable ZIP). |
 | `docs/plans/implemented/` | The implementation plan this follows. |
+
+## 7. License
+
+[MIT](LICENSE)
