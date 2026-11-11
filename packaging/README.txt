@@ -58,7 +58,13 @@ Tray icon
 ---------
 
   Left-click     Open search.
-  Right-click    Open search, Start with Windows (checkbox), Exit QuickSwitch.
+  Right-click    Open search, Change shortcut..., Start with Windows
+                 (checkbox), Exit QuickSwitch.
+
+"Change shortcut..." lets you pick up to three modifier keys (Ctrl, Alt,
+Shift, Win) and a key from dropdowns. Save switches to it right away. If
+Windows or another app already uses that combination, your old shortcut
+keeps working and QuickSwitch tells you to pick another.
 
 "Start with Windows" is off unless you turn it on (here or in the installer).
 It always shows the real setting. If you use the portable version and move
@@ -78,8 +84,8 @@ QuickSwitch after editing it (tray menu > Exit, then start it again).
 
 A shortcut is modifiers (Ctrl, Alt, Shift, Win) joined with +, then one key
 (K, Space, F1, ...). If another app already uses the shortcut, QuickSwitch
-says so once and keeps running; open it from the tray icon or set
-fallback_hotkey.
+says so once and keeps running; open it from the tray icon and use
+"Change shortcut...", or set fallback_hotkey.
 
 QuickSwitch also stores the results you picked recently ("recent") and the
 folders it remembers ("folders") in this file. You can delete those lines to

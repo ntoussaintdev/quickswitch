@@ -32,7 +32,8 @@ Neither needs administrator rights. The binaries are not code-signed, so SmartSc
 | **Enter** or click | Switch to the window / tab, or open the folder. |
 | **Esc**, click elsewhere | Hide the popup. QuickSwitch keeps running. |
 | Tray icon left-click | Open search. |
-| Tray icon right-click | *Open search*, *Start with Windows* (checkbox), *Exit QuickSwitch*. |
+| Tray icon right-click | *Open search*, *Change shortcut…*, *Start with Windows* (checkbox), *Exit QuickSwitch*. |
+| *Change shortcut…* | Pick up to three modifiers (Ctrl, Alt, Shift, Win) and a key from dropdowns; **Save** switches at once, no restart. If Windows or another app owns the combination, the old shortcut keeps working and the view says so. |
 
 ### 2.1 What is matched
 
@@ -87,7 +88,7 @@ recent = []                         # managed by QuickSwitch: recently picked re
 folders = []                        # managed by QuickSwitch: remembered folders (max 200)
 ```
 
-Shortcut syntax: modifiers `Ctrl`, `Alt`, `Shift`, `Win` joined with `+`, then one key (`K`, `Space`, `F1`, ...). If a shortcut is already taken by another app, QuickSwitch says so once and keeps running; open it from the tray or set `fallback_hotkey`. Restart QuickSwitch after editing the file.
+The main shortcut is easiest to change from the tray menu (*Change shortcut…*), which also saves it here. Shortcut syntax: modifiers `Ctrl`, `Alt`, `Shift`, `Win` joined with `+`, then one key (`K`, `Space`, `F1`, ...). If a shortcut is already taken by another app, QuickSwitch says so once and keeps running; open it from the tray, pick another, or set `fallback_hotkey`. Restart QuickSwitch after editing the file.
 
 Problems are logged to `quickswitch.log` in the same folder.
 
@@ -125,7 +126,7 @@ The default renderer is glow (OpenGL). The `wgpu` feature switches to wgpu (Dire
 | `src/main.rs` | Entry: single-instance check, hidden eframe viewport, CLI flags. |
 | `src/app.rs` | `eframe::App`: commands and lifecycle in `logic`, the palette in `ui`. |
 | `src/command.rs` | Command queue from tray/hotkey/worker/second launch into the app. |
-| `src/ui/` | Palette widget and styles. |
+| `src/ui/` | Palette widget, shortcut settings view and styles. |
 | `src/os/` | Tray, global hotkey, Win32 windows (enumerate, activate, place), single instance, log. |
 | `src/search/` | Result model and snapshot merge, ranking and highlighting (nucleo), Explorer-tab worker (COM STA thread: ShellWindows + UI Automation). |
 | `src/actions/` | Path resolution, folder suggestions and opening folders. |

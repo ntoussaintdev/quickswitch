@@ -30,6 +30,7 @@ use crate::search::matcher::Ranker;
 use crate::search::{SearchItem, Shown, Snapshot, Target, display_path, folder_item};
 use crate::startup;
 use crate::ui::palette::{Palette, PaletteAction, Status};
+use crate::ui::shortcut::{ShortcutAction, ShortcutEditor};
 use crate::ui::styles;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -55,6 +56,8 @@ pub struct QuickSwitchApp {
 
     ranker: Ranker,
     palette: Palette,
+    /// The shortcut settings view, shown instead of the palette while set.
+    shortcut_editor: Option<ShortcutEditor>,
     snapshot: Snapshot,
     /// Ranked results currently on screen.
     shown: Vec<Shown>,
@@ -132,7 +135,7 @@ impl QuickSwitchApp {
             let mut msg = problems.join("\n");
             msg.push_str(
                 "\n\nQuickSwitch is still running: click its tray icon, or run QuickSwitch.exe again, to open search. \
-                 You can set `fallback_hotkey` in config.toml (see the README).",
+                 Pick another shortcut with \u{201c}Change shortcut\u{2026}\u{201d} in the tray menu.",
             );
             if let Some(t) = &tray {
                 t.set_tooltip("QuickSwitch (shortcut unavailable; click to open)");
@@ -155,6 +158,7 @@ impl QuickSwitchApp {
             exe: std::env::current_exe().unwrap_or_default(),
             ranker: Ranker::default(),
             palette: Palette::default(),
+            shortcut_editor: None,
             snapshot: Snapshot::default(),
             shown: Vec::new(),
             path_mode: false,
@@ -212,6 +216,7 @@ impl QuickSwitchApp {
             ctx.send_viewport_cmd(ViewportCommand::Visible(false));
         }
         self.visible = false;
+        self.shortcut_editor = None;
         self.pending_tab = None;
         self.palette.busy = None;
         // Results hold window handles; don't keep them around while hidden.
@@ -248,6 +253,38 @@ impl QuickSwitchApp {
         }
         if let Some(t) = &self.tray {
             t.set_startup_checked(startup::is_enabled());
+        }
+    }
+
+    /// Tray "Change shortcut…": show the popup with the settings view.
+    fn edit_shortcut(&mut self, ctx: &egui::Context) {
+        self.open(ctx);
+        self.shortcut_editor = Some(ShortcutEditor::new(&self.config.hotkey));
+    }
+
+    /// Switch to the picked shortcut. On failure the old one stays active and
+    /// the settings view shows why.
+    fn save_shortcut(&mut self, text: String) {
+        let result = match self.hotkeys.as_mut() {
+            Some(h) => h.replace(&text),
+            None => Err("Global shortcuts are unavailable on this system.".into()),
+        };
+        match result {
+            Ok(()) => {
+                if let Some(t) = &self.tray {
+                    t.set_hotkey_label(&text);
+                }
+                self.config.hotkey = text.clone();
+                self.save_config();
+                self.shortcut_editor = None;
+                self.palette.request_focus();
+                self.palette.status = Some(Status::Info(format!("Shortcut changed to {text}")));
+            }
+            Err(e) => {
+                if let Some(editor) = self.shortcut_editor.as_mut() {
+                    editor.status = Some(Status::Error(e));
+                }
+            }
         }
     }
 
@@ -506,6 +543,7 @@ impl QuickSwitchApp {
                 }
             }
             AppCommand::Open => self.open(ctx),
+            AppCommand::EditShortcut => self.edit_shortcut(ctx),
             AppCommand::ToggleStartup => self.toggle_startup(),
             AppCommand::Exit => self.exit(ctx),
             AppCommand::Tabs { generation, tabs } => {
@@ -596,6 +634,15 @@ impl eframe::App for QuickSwitchApp {
                 return;
             }
             _ => {}
+        }
+
+        if let Some(editor) = self.shortcut_editor.as_mut() {
+            match editor.show(ui) {
+                Some(ShortcutAction::Save(text)) => self.save_shortcut(text),
+                Some(ShortcutAction::Cancel) => self.hide(&ctx),
+                None => {}
+            }
+            return;
         }
 
         match self.palette.show(ui, &self.shown, self.path_mode) {

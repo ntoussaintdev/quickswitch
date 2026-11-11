@@ -14,6 +14,8 @@ pub enum AppCommand {
     Toggle,
     /// Tray click / menu / second launch: open (or refocus).
     Open,
+    /// Tray menu "Change shortcut…": open the shortcut settings view.
+    EditShortcut,
     /// Tray menu "Start with Windows" was clicked.
     ToggleStartup,
     /// Tray menu "Exit".
