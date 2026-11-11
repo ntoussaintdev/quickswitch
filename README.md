@@ -38,6 +38,7 @@ Neither needs administrator rights. The binaries are not code-signed, so SmartSc
 | **Esc**, click elsewhere | Hide the popup. QuickSwitch keeps running. |
 | Tray icon left-click | Open search. |
 | Tray icon right-click | *Open search*, *Settings…*, *Start with Windows*, *Search browser tabs* and *Web search in results* (checkboxes; the last two on by default), *Exit QuickSwitch*. |
+| *Settings…* → *General* | How many results to show (1–50, default 15), whether to search browser and Windows Terminal tabs, the web row, *Start with Windows*, and buttons to forget recent picks or remembered folders. The same settings as in `config.toml`, without editing it. |
 | *Settings…* → *Shortcut* | Pick up to three modifiers (Ctrl, Alt, Shift, Win) and a key from dropdowns; **Save** switches at once, no restart. If Windows or another app owns the combination, the old shortcut keeps working and the view says so. |
 | *Settings…* → *Web search* | The engine for web searches: Google (default), Bing, DuckDuckGo, Brave Search, Ecosia, Startpage, Kagi, Yahoo, Perplexity, ChatGPT, Claude, or a custom address with `{}` where the text goes. **Ctrl + Tab** switches tabs. |
 
@@ -93,7 +94,7 @@ The tray checkbox adds or removes the value `QuickSwitch` under `HKCU\Software\M
 ```toml
 hotkey = "Ctrl+Win+K"              # main shortcut
 fallback_hotkey = "Ctrl+Alt+Space"  # optional second shortcut, registered only if set
-max_results = 9                     # rows in the popup (1–20)
+max_results = 15                    # rows in the popup (1–50)
 recent = []                         # managed by QuickSwitch: recently picked results
 folders = []                        # managed by QuickSwitch: remembered folders (max 200)
 browser_tabs = true                 # list browser tabs (also the tray checkbox)
@@ -103,7 +104,7 @@ search_engine = "google"            # google, bing, duckduckgo, brave, ecosia, s
 custom_search_url = ""              # for "custom": https://... with {} where the text goes
 ```
 
-The main shortcut and the search engine are easiest to change in the tray menu's *Settings…*, which also saves it here. Shortcut syntax: modifiers `Ctrl`, `Alt`, `Shift`, `Win` joined with `+`, then one key (`K`, `Space`, `F1`, ...). If a shortcut is already taken by another app, QuickSwitch says so once and keeps running; open it from the tray, pick another, or set `fallback_hotkey`. Restart QuickSwitch after editing the file.
+Everything except `fallback_hotkey` can be changed in the tray menu's *Settings…*, which also saves it here. Shortcut syntax: modifiers `Ctrl`, `Alt`, `Shift`, `Win` joined with `+`, then one key (`K`, `Space`, `F1`, ...). If a shortcut is already taken by another app, QuickSwitch says so once and keeps running; open it from the tray, pick another, or set `fallback_hotkey`. Restart QuickSwitch after editing the file.
 
 Problems are logged to `quickswitch.log` in the same folder.
 

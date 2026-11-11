@@ -232,3 +232,22 @@ fn browser_tab_matches_on_title_and_browser_name() {
     assert_eq!(rank(&items, "edge pull", &[]), vec![1]);
     assert_eq!(rank(&items, "work pull", &[]), vec![1]);
 }
+
+#[test]
+fn repo_name_after_last_slash_counts_like_a_folder_name() {
+    // A recently picked tab whose path merely contains the word must not
+    // push an "owner/repo" page below it.
+    let items = vec![
+        tab(11, r"C:\Users\alice\Projects\quickswitch\dist"),
+        item(12, "Releases · ntoussaintdev/quickswitch", "Chrome"),
+    ];
+    let recent = vec![items[0].recent_key.clone()];
+    let order = rank(&items, "quickswitch", &recent);
+    assert_eq!(order, vec![1, 0]);
+    // Only the part after the last slash gets the bonus.
+    let items = vec![
+        item(13, "Docs · quickswitch/docs - GitHub", "Chrome"),
+        item(14, "GitHub - owner/quickswitch: switcher", "Chrome"),
+    ];
+    assert_eq!(rank(&items, "quickswitch", &[]), vec![1, 0]);
+}

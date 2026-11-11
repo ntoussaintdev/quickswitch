@@ -18,7 +18,8 @@ use super::{MatchOn, SearchItem};
 const EXACT_SEGMENT: u32 = 3_000;
 const SEGMENT_PREFIX: u32 = 2_000;
 const SUBSTRING: u32 = 1_200;
-/// Bonus when a path word matches the last folder (the tab's own folder).
+/// Bonus when a path word matches the last folder (the tab's own folder), or
+/// a title word is the whole part after the title's last `/` ("owner/repo").
 const LAST_SEGMENT: u32 = 600;
 /// Bonus when a window word matches the title rather than the app name.
 const IN_TITLE: u32 = 300;
@@ -189,6 +190,9 @@ impl Ranker {
                     match (t, s) {
                         (Some(t), s) if s.as_ref().is_none_or(|s| t.score + IN_TITLE >= s.score) => {
                             total += t.score + IN_TITLE;
+                            if t.score == EXACT_SEGMENT && after_last_slash(&item.title, &t.indices) {
+                                total += LAST_SEGMENT;
+                            }
                             title_hl.extend(t.indices);
                         }
                         (_, Some(s)) => {
@@ -275,6 +279,17 @@ impl Ranker {
         // A name is one segment: treat it as a path with no separators.
         self.match_word(word, &atom, name, true).map(|m| (m.score, m.indices))
     }
+}
+
+/// Whether a match starts right after the title's last `/`, as "repo" does in
+/// "Releases · owner/repo" or "GitHub - owner/repo: about". That word names
+/// the thing, like a folder's last name, so it gets the same bonus.
+fn after_last_slash(title: &str, indices: &[usize]) -> bool {
+    let Some(&start) = indices.first() else {
+        return false;
+    };
+    let chars: Vec<char> = title.chars().collect();
+    start > 0 && chars.get(start - 1) == Some(&'/') && !chars[start..].contains(&'/')
 }
 
 /// For path items the title is the last folder name: copy the highlights

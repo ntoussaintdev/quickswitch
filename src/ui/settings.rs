@@ -1,5 +1,7 @@
 //! Settings view, opened from the tray menu's "Settings…". Shown in the
 //! popup window instead of the palette, with one tab per topic:
+//! - General: result count, which tabs to search, the web row, start with
+//!   Windows, and clearing what QuickSwitch remembers (`GeneralEditor`);
 //! - Shortcut: the global shortcut (`shortcut::ShortcutEditor`);
 //! - Web search: the engine used by the web row, `web:` and Ctrl+Enter.
 
@@ -12,12 +14,14 @@ use crate::actions::web::{CUSTOM_ENGINE, ENGINES, check_custom_url};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SettingsTab {
+    General,
     Shortcut,
     Web,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SettingsAction {
+    SaveGeneral(General),
     SaveShortcut(String),
     SaveWeb { engine: String, custom_url: String },
     Cancel,
@@ -25,14 +29,16 @@ pub enum SettingsAction {
 
 pub struct Settings {
     pub tab: SettingsTab,
+    pub general: GeneralEditor,
     pub shortcut: ShortcutEditor,
     pub web: WebEditor,
 }
 
 impl Settings {
-    pub fn new(hotkey: &str, engine: &str, custom_url: &str) -> Self {
+    pub fn new(general: General, hotkey: &str, engine: &str, custom_url: &str) -> Self {
         Settings {
-            tab: SettingsTab::Shortcut,
+            tab: SettingsTab::General,
+            general: GeneralEditor::new(general),
             shortcut: ShortcutEditor::new(hotkey),
             web: WebEditor::new(engine, custom_url),
         }
@@ -42,8 +48,9 @@ impl Settings {
         // Ctrl+Tab switches tabs.
         if ui.input_mut(|i| i.consume_key(Modifiers::CTRL, Key::Tab)) {
             self.tab = match self.tab {
+                SettingsTab::General => SettingsTab::Shortcut,
                 SettingsTab::Shortcut => SettingsTab::Web,
-                SettingsTab::Web => SettingsTab::Shortcut,
+                SettingsTab::Web => SettingsTab::General,
             };
         }
 
@@ -61,7 +68,11 @@ impl Settings {
         ui.horizontal(|ui| {
             ui.label(RichText::new("Settings").size(SEARCH_FONT));
             ui.add_space(18.0);
-            for (tab, label) in [(SettingsTab::Shortcut, "Shortcut"), (SettingsTab::Web, "Web search")] {
+            for (tab, label) in [
+                (SettingsTab::General, "General"),
+                (SettingsTab::Shortcut, "Shortcut"),
+                (SettingsTab::Web, "Web search"),
+            ] {
                 let text = RichText::new(label).size(TITLE_FONT);
                 if ui.selectable_label(self.tab == tab, text).clicked() {
                     self.tab = tab;
@@ -74,12 +85,112 @@ impl Settings {
         ui.add_space(10.0);
 
         match self.tab {
+            SettingsTab::General => self.general.show(ui),
             SettingsTab::Shortcut => self.shortcut.show(ui).map(|a| match a {
                 ShortcutAction::Save(text) => SettingsAction::SaveShortcut(text),
                 ShortcutAction::Cancel => SettingsAction::Cancel,
             }),
             SettingsTab::Web => self.web.show(ui),
         }
+    }
+}
+
+/// The General tab's values. `clear_recent` and `clear_folders` ask for the
+/// remembered lists to be emptied on save.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct General {
+    pub max_results: usize,
+    pub browser_tabs: bool,
+    pub terminal_tabs: bool,
+    pub web_search: bool,
+    pub start_with_windows: bool,
+    pub recent_count: usize,
+    pub folder_count: usize,
+    pub clear_recent: bool,
+    pub clear_folders: bool,
+}
+
+/// General tab: the options that otherwise live only in `config.toml`.
+pub struct GeneralEditor {
+    values: General,
+}
+
+impl GeneralEditor {
+    pub fn new(values: General) -> Self {
+        GeneralEditor { values }
+    }
+
+    pub fn show(&mut self, ui: &mut egui::Ui) -> Option<SettingsAction> {
+        let mut action = None;
+        let (enter, escape) = ui.input_mut(|i| {
+            (
+                i.consume_key(Modifiers::NONE, Key::Enter),
+                i.consume_key(Modifiers::NONE, Key::Escape),
+            )
+        });
+        if escape {
+            return Some(SettingsAction::Cancel);
+        }
+        if enter {
+            action = Some(SettingsAction::SaveGeneral(self.values.clone()));
+        }
+
+        let v = &mut self.values;
+        ui.horizontal(|ui| {
+            ui.label("Results shown");
+            ui.add(egui::Slider::new(&mut v.max_results, 1..=crate::config::MAX_RESULTS).integer());
+        });
+        ui.add_space(6.0);
+        ui.checkbox(&mut v.browser_tabs, "Search browser tabs");
+        ui.checkbox(&mut v.terminal_tabs, "Search Windows Terminal tabs");
+        ui.checkbox(&mut v.web_search, "Web search row in results");
+        ui.checkbox(&mut v.start_with_windows, "Start with Windows");
+        ui.add_space(8.0);
+        ui.horizontal(|ui| {
+            forget_button(ui, &mut v.clear_recent, "recent picks", v.recent_count);
+            forget_button(ui, &mut v.clear_folders, "remembered folders", v.folder_count);
+        });
+        if v.clear_recent || v.clear_folders {
+            ui.label(
+                RichText::new("Forgotten when you save.")
+                    .size(SMALL_FONT)
+                    .color(TEXT_WEAK),
+            );
+        }
+
+        ui.with_layout(Layout::bottom_up(Align::Min), |ui| {
+            ui.horizontal(|ui| {
+                ui.label(
+                    RichText::new("Enter save   Esc cancel   Ctrl+Tab next tab")
+                        .size(SMALL_FONT)
+                        .color(TEXT_FAINT),
+                );
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    if ui.button("Save").clicked() {
+                        action = Some(SettingsAction::SaveGeneral(self.values.clone()));
+                    }
+                    if ui.button("Cancel").clicked() {
+                        action = Some(SettingsAction::Cancel);
+                    }
+                });
+            });
+        });
+
+        action
+    }
+}
+
+/// "Forget N recent picks" toggle: clicking marks the list to be cleared on
+/// save, clicking again undoes it.
+fn forget_button(ui: &mut egui::Ui, clear: &mut bool, what: &str, count: usize) {
+    let text = if *clear {
+        format!("Undo: keep {what}")
+    } else {
+        format!("Forget {count} {what}")
+    };
+    let button = ui.add_enabled(count > 0, egui::Button::new(RichText::new(text).size(SMALL_FONT)));
+    if button.clicked() {
+        *clear = !*clear;
     }
 }
 

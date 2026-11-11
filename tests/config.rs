@@ -11,7 +11,7 @@ fn defaults() {
     assert_eq!(c.hotkey, DEFAULT_HOTKEY);
     assert_eq!(c.fallback_hotkey, None);
     assert!(c.recent.is_empty());
-    assert!((1..=20).contains(&c.max_results));
+    assert!((1..=quickswitch::config::MAX_RESULTS).contains(&c.max_results));
 }
 
 #[test]
@@ -36,7 +36,7 @@ fn invalid_file_falls_back_with_warning() {
 #[test]
 fn out_of_range_values_are_clamped() {
     let (c, _) = Config::from_toml("max_results = 500");
-    assert_eq!(c.max_results, 20);
+    assert_eq!(c.max_results, 50);
     let (c, _) = Config::from_toml("max_results = 0");
     assert_eq!(c.max_results, 1);
 }

@@ -34,7 +34,7 @@ use crate::search::{
 };
 use crate::startup;
 use crate::ui::palette::{Palette, PaletteAction, Status};
-use crate::ui::settings::{Settings, SettingsAction};
+use crate::ui::settings::{General, Settings, SettingsAction};
 use crate::ui::styles;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -308,11 +308,53 @@ impl QuickSwitchApp {
     /// Tray "Settings…": show the popup with the settings view.
     fn open_settings(&mut self, ctx: &egui::Context) {
         self.open(ctx);
+        let general = General {
+            max_results: self.config.max_results,
+            browser_tabs: self.config.browser_tabs,
+            terminal_tabs: self.config.terminal_tabs,
+            web_search: self.config.web_search,
+            start_with_windows: startup::is_enabled(),
+            recent_count: self.config.recent.len(),
+            folder_count: self.config.folders.len(),
+            clear_recent: false,
+            clear_folders: false,
+        };
         self.settings = Some(Settings::new(
+            general,
             &self.config.hotkey,
             &self.config.search_engine,
             &self.config.custom_search_url,
         ));
+    }
+
+    /// Apply the General tab and return to the search.
+    fn save_general(&mut self, g: General) {
+        self.config.max_results = g.max_results.clamp(1, crate::config::MAX_RESULTS);
+        self.config.browser_tabs = g.browser_tabs;
+        self.config.terminal_tabs = g.terminal_tabs;
+        self.config.web_search = g.web_search;
+        if g.clear_recent {
+            self.config.recent.clear();
+        }
+        if g.clear_folders {
+            self.config.folders.clear();
+            self.snapshot.set_history(Vec::new());
+        }
+        self.save_config();
+        if g.start_with_windows != startup::is_enabled()
+            && let Err(e) = startup::set_enabled(g.start_with_windows, &self.exe)
+        {
+            os::warn(format!("Could not change “Start with Windows”: {e}"));
+        }
+        if let Some(t) = &self.tray {
+            t.set_browser_tabs_checked(self.config.browser_tabs);
+            t.set_web_search_checked(self.config.web_search);
+            t.set_startup_checked(startup::is_enabled());
+        }
+        self.settings = None;
+        self.palette.request_focus();
+        self.refresh_results();
+        self.palette.status = Some(Status::Info("Settings saved".into()));
     }
 
     /// Use the picked search engine and return to the search.
@@ -882,6 +924,7 @@ impl eframe::App for QuickSwitchApp {
 
         if let Some(settings) = self.settings.as_mut() {
             match settings.show(ui) {
+                Some(SettingsAction::SaveGeneral(g)) => self.save_general(g),
                 Some(SettingsAction::SaveShortcut(text)) => self.save_shortcut(text),
                 Some(SettingsAction::SaveWeb { engine, custom_url }) => self.save_web(engine, custom_url),
                 Some(SettingsAction::Cancel) => self.hide(&ctx),

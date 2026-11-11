@@ -9,6 +9,8 @@ use serde::{Deserialize, Serialize};
 
 pub const DEFAULT_HOTKEY: &str = "Ctrl+Win+K";
 pub const MAX_RECENT: usize = 50;
+/// Most results the palette can list (`max_results` is clamped to 1..=this).
+pub const MAX_RESULTS: usize = 50;
 /// Remembered folders (opened from QuickSwitch or seen open in Explorer).
 pub const MAX_FOLDERS: usize = 200;
 /// A file with this name next to QuickSwitch.exe turns on portable mode:
@@ -29,7 +31,7 @@ pub struct Config {
     pub hotkey: String,
     /// Optional second shortcut, registered only when set (plan step 5).
     pub fallback_hotkey: Option<String>,
-    /// How many results the palette lists (clamped to 1..=20).
+    /// How many results the palette lists (clamped to 1..=`MAX_RESULTS`).
     pub max_results: usize,
     /// Recently picked result keys, most recent first.
     pub recent: Vec<String>,
@@ -53,7 +55,7 @@ impl Default for Config {
         Config {
             hotkey: DEFAULT_HOTKEY.to_string(),
             fallback_hotkey: None,
-            max_results: 9,
+            max_results: 15,
             recent: Vec::new(),
             folders: Vec::new(),
             browser_tabs: true,
@@ -78,7 +80,7 @@ impl Config {
     pub fn from_toml(text: &str) -> (Config, Option<String>) {
         match toml::from_str::<Config>(text) {
             Ok(mut c) => {
-                c.max_results = c.max_results.clamp(1, 20);
+                c.max_results = c.max_results.clamp(1, MAX_RESULTS);
                 c.recent.truncate(MAX_RECENT);
                 c.folders.truncate(MAX_FOLDERS);
                 (c, None)

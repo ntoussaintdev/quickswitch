@@ -93,7 +93,13 @@ Tray icon
                  Search browser tabs (checkbox), Web search in results
                  (checkbox), Exit QuickSwitch.
 
-Settings... has two tabs (Ctrl + Tab switches). Shortcut lets you pick up to three modifier keys (Ctrl, Alt,
+Settings... has three tabs (Ctrl + Tab switches).
+
+General sets how many results to show (default 15), whether to search
+browser and Windows Terminal tabs, the web search row and Start with
+Windows. It can also forget your recent picks or remembered folders.
+
+Shortcut lets you pick up to three modifier keys (Ctrl, Alt,
 Shift, Win) and a key from dropdowns. Save switches to it right away. If
 Windows or another app already uses that combination, your old shortcut
 keeps working and QuickSwitch tells you to pick another.
@@ -115,12 +121,13 @@ Settings
 --------
 
 Settings are in config.toml: %APPDATA%\QuickSwitch\config.toml, or next to
-QuickSwitch.exe in the portable version. Every key is optional. Restart
-QuickSwitch after editing it (tray menu > Exit, then start it again).
+QuickSwitch.exe in the portable version. Settings... changes all of these
+except fallback_hotkey, so you rarely need to edit it. Every key is optional.
+Restart QuickSwitch after editing it (tray menu > Exit, then start it again).
 
   hotkey = "Ctrl+Win+K"               main shortcut
   fallback_hotkey = "Ctrl+Alt+Space"  optional second shortcut
-  max_results = 9                     rows in the popup (1-20)
+  max_results = 15                    rows in the popup (1-50)
   browser_tabs = true                 list browser tabs
   terminal_tabs = true                list Windows Terminal tabs
 

@@ -7,6 +7,17 @@ Each release needs a section headed "## [X.Y.Z] - YYYY-MM-DD" before its tag is 
 The Release workflow publishes that section as the GitHub release notes and fails without it.
 -->
 
+## [0.4.1] - 2026-11-11
+
+### Added
+- **General tab in Settings** (now the first tab): how many results to show, browser and Terminal tab search, the web search row, Start with Windows, and buttons to forget recent picks or remembered folders. No need to edit `config.toml`.
+
+### Changed
+- QuickSwitch now shows up to 15 results by default instead of 9, and you can choose up to 50 (was 20). If your settings file already has a number, it is kept. Change it in Settings → General.
+
+### Fixed
+- Pages titled like `owner/repo` (GitHub and similar) now rank higher when you search for the repo name. Before, a recently used folder whose path only contained that word could push them out of the results.
+
 ## [0.4.0] - 2026-11-11
 
 Search your browser and Windows Terminal tabs, narrow results by type, and search the web straight from QuickSwitch.
