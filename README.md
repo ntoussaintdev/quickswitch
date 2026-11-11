@@ -4,6 +4,8 @@ A small Spotlight-style launcher for Windows 11. Press **Ctrl + Win + K**, type,
 
 - switch to any open window (minimized windows are restored),
 - switch to an individual **File Explorer tab**,
+- switch to a **browser tab** in Chrome, Edge, Brave, Vivaldi, Opera or Firefox,
+- switch to a **Windows Terminal tab**,
 - open a folder from Linux-friendly input such as `~/Documents`, `C:/dev/work`, `./notes`, `%APPDATA%/x` or `//server/share`.
 
 It runs in the notification area (system tray) until you choose **Exit**. Built with Rust and egui/eframe; one executable, no admin rights.
@@ -29,19 +31,25 @@ Neither needs administrator rights. The binaries are not code-signed, so SmartSc
 |---|---|
 | Run `QuickSwitch.exe` | Starts hidden in the tray. Running it again opens the search popup. |
 | **Ctrl + Win + K** | Opens the popup on the monitor you are using. Press again to close. |
-| Type | Filters open windows, Explorer tabs and remembered folders. Every word must match, in any order; matched letters are highlighted. |
+| Type | Filters open windows, Explorer tabs, browser and Terminal tabs, and remembered folders. Every word must match, in any order; matched letters are highlighted. |
 | **↑ / ↓**, **Tab**, **PgUp / PgDn** | Move through results. In folder input, **Tab** completes the selected folder instead. |
 | **Enter** or click | Switch to the window / tab, or open the folder. |
+| **Ctrl + Enter** | Search the web for the typed text (or visit it, if it is a website), whatever row is selected. |
 | **Esc**, click elsewhere | Hide the popup. QuickSwitch keeps running. |
 | Tray icon left-click | Open search. |
-| Tray icon right-click | *Open search*, *Change shortcut…*, *Start with Windows* (checkbox), *Exit QuickSwitch*. |
-| *Change shortcut…* | Pick up to three modifiers (Ctrl, Alt, Shift, Win) and a key from dropdowns; **Save** switches at once, no restart. If Windows or another app owns the combination, the old shortcut keeps working and the view says so. |
+| Tray icon right-click | *Open search*, *Settings…*, *Start with Windows*, *Search browser tabs* and *Web search in results* (checkboxes; the last two on by default), *Exit QuickSwitch*. |
+| *Settings…* → *Shortcut* | Pick up to three modifiers (Ctrl, Alt, Shift, Win) and a key from dropdowns; **Save** switches at once, no restart. If Windows or another app owns the combination, the old shortcut keeps working and the view says so. |
+| *Settings…* → *Web search* | The engine for web searches: Google (default), Bing, DuckDuckGo, Brave Search, Ecosia, Startpage, Kagi, Yahoo, Perplexity, ChatGPT, Claude, or a custom address with `{}` where the text goes. **Ctrl + Tab** switches tabs. |
 
 ### 2.1 What is matched
 
 - **Windows**: title and app name.
 - **Explorer tabs**: only the folder path, shown on the row with the home folder as `~` (the `~` part is not searched). A match in the tab's own folder name ranks above a match higher up the path.
+- **Browser tabs**: the tab's title and the browser's name, shown in grey (`Chrome`, or `Edge · Work` when the window title shows a profile). With nothing typed, each browser window is one row for the tab it is showing; its other tabs appear once you type. Tab titles are not saved: the recent list stores a hash of the title instead.
+- **Windows Terminal tabs**: the same as browser tabs, with the grey text `Terminal`. Tab titles are whatever the shell sets, so several tabs are often just `PowerShell`; those rows also show their tab number (`Terminal · tab 3`), and `tab 3` can be typed. Old console windows (conhost) have no tabs and stay window rows.
 - **Remembered folders**: folders opened from QuickSwitch or seen open in Explorer (up to 200, stored in `config.toml`). They are searched like tabs but not listed for an empty query, and a folder that is open in a tab is shown as that tab instead.
+- **Type filters**: start with `browser:`, `window:`, `explorer:`, `terminal:`, `tab:` (all tabs) or `folder:` (remembered folders and Explorer tabs) to show only that kind; the rest of the query searches within it, e.g. `browser: mail`. On its own (`browser:`) a filter lists every result of that kind, including the tabs an empty query hides. Two or more letters of the word are enough (`br:`, `term:`), plurals work (`windows:`), and `web:` means `browser:`. A single letter is a drive (`c:`), not a filter.
+- **Web row**: typed text that isn't a folder path also gets a row that searches the web for it (*Search Google for “…”*), or *Visit …* when the text is clearly a website: it has a protocol (`https://`, `ftp://`), starts with `www.`, is `localhost` or an IP address with a port or path, or ends in a common top-level domain (`github.com/x`). Domains that are also file extensions (`.md`, `.rs`, `.py`, `.sh`, …) don't count, so `README.md` is searched. Without a filter the row comes last, or first when nothing else matches, so Enter still switches to the best match; ↑ from the top reaches it, and **Ctrl + Enter** runs it from anywhere. With `web:` or `browser:` the row is first. `gpt:` (or `chatgpt:`) shows only *Ask ChatGPT “…”*, which opens chatgpt.com with the text as the question. Untick *Web search in results* in the tray to drop the row (Ctrl + Enter and the filters still work). Web searches are not added to the recent list.
 - A word matches as a substring, or fuzzily (letters in order with gaps) **within one word or folder name**. Fuzzy matches never jump across words or folders.
 - Ties: recent picks first, then window Z-order.
 
@@ -88,9 +96,14 @@ fallback_hotkey = "Ctrl+Alt+Space"  # optional second shortcut, registered only 
 max_results = 9                     # rows in the popup (1–20)
 recent = []                         # managed by QuickSwitch: recently picked results
 folders = []                        # managed by QuickSwitch: remembered folders (max 200)
+browser_tabs = true                 # list browser tabs (also the tray checkbox)
+terminal_tabs = true                # list Windows Terminal tabs
+web_search = true                   # web row in results (also the tray checkbox)
+search_engine = "google"            # google, bing, duckduckgo, brave, ecosia, startpage, kagi, yahoo, perplexity, chatgpt, claude, custom
+custom_search_url = ""              # for "custom": https://... with {} where the text goes
 ```
 
-The main shortcut is easiest to change from the tray menu (*Change shortcut…*), which also saves it here. Shortcut syntax: modifiers `Ctrl`, `Alt`, `Shift`, `Win` joined with `+`, then one key (`K`, `Space`, `F1`, ...). If a shortcut is already taken by another app, QuickSwitch says so once and keeps running; open it from the tray, pick another, or set `fallback_hotkey`. Restart QuickSwitch after editing the file.
+The main shortcut and the search engine are easiest to change in the tray menu's *Settings…*, which also saves it here. Shortcut syntax: modifiers `Ctrl`, `Alt`, `Shift`, `Win` joined with `+`, then one key (`K`, `Space`, `F1`, ...). If a shortcut is already taken by another app, QuickSwitch says so once and keeps running; open it from the tray, pick another, or set `fallback_hotkey`. Restart QuickSwitch after editing the file.
 
 Problems are logged to `quickswitch.log` in the same folder.
 
@@ -101,7 +114,9 @@ Problems are logged to `quickswitch.log` in the same folder.
 - **Opening a folder** that no tab shows uses the shell's normal "open". Whether that makes a new Explorer window or a new tab depends on your Explorer settings and Windows build.
 - **Focus rules.** Windows decides whether an app may take the foreground. QuickSwitch only switches in response to your key press or click and never simulates keystrokes to get around this; if Windows refuses, the popup shows an error.
 - **Elevated (administrator) windows** are listed but some may refuse switching from a non-elevated QuickSwitch. Windows on other virtual desktops are not listed.
-- Searching inside browser tabs, files on disk or WSL paths is out of scope for v1.
+- **Browser tabs** are read with UI Automation from each browser window's tab strip; the browser's page content is never read. Browsers only expose tab titles this way, so URLs are not searched. Tabs inside a collapsed tab group may not be listed. A browser whose tab strip can't be read (an unusual layout, or a new browser version) is listed as a normal window, and the log says so once. Reading the tab strip makes the browser turn on its accessibility support for its own UI, which can use a little more memory; untick *Search browser tabs* in the tray to stop it. Electron apps (VS Code, Slack, Teams, ...) use Chrome's window type but are not browsers and stay normal windows.
+- **Windows Terminal tabs** are read and switched the same way (its WinUI tab strip). Only tab titles are visible, not the shell's current folder.
+- Searching inside files on disk or WSL paths is out of scope.
 
 ## 5. Build
 
@@ -113,6 +128,9 @@ cargo test                        # unit tests (paths, ranking, settings, result
 cargo run --example tab_paths_spike   # list Explorer tabs with their folders and tab windows (read-only)
 cargo run --example uia_spike     # list Explorer windows and the tabs UIA exposes (read-only)
 cargo run --example uia_spike -- --select 0 1   # try selecting tab 1 of window 0
+cargo run --example browser_tabs_spike          # list browser windows and their tabs, cold and warm timing (read-only)
+cargo run --example browser_tabs_spike -- --tree 0      # path to window 0's tab strip, per-tab names and patterns
+cargo run --example browser_tabs_spike -- --select 0 3  # switch window 0 to its tab 3
 .\scripts\package.ps1             # fmt + clippy + tests + release build + ZIP + installer into dist\ (ships packaging\README.txt)
 cargo build --release --features wgpu   # alternative renderer, for comparison
 ```
@@ -141,12 +159,12 @@ The `Release` workflow runs `scripts/package.ps1` on Windows and attaches the in
 | `src/command.rs` | Command queue from tray/hotkey/worker/second launch into the app. |
 | `src/ui/` | Palette widget, shortcut settings view and styles. |
 | `src/os/` | Tray, global hotkey, Win32 windows (enumerate, activate, place), single instance, log. |
-| `src/search/` | Result model and snapshot merge, ranking and highlighting (nucleo), Explorer-tab worker (COM STA thread: ShellWindows + UI Automation). |
+| `src/search/` | Result model and snapshot merge, ranking and highlighting (nucleo), browser table and tab-name cleanup (`browsers.rs`), tab worker (COM STA thread, `worker.rs`) reading Explorer tabs (ShellWindows + UI Automation) and browser tabs (UI Automation). |
 | `src/actions/` | Path resolution, folder suggestions and opening folders. |
 | `src/config.rs`, `src/startup.rs` | Settings file, HKCU Run value. |
 | `packaging/QuickSwitch.iss` | Inno Setup installer. |
 | `packaging/README.txt` | The README shipped to users (installer and portable ZIP). |
-| `docs/plans/implemented/` | The implementation plan this follows. |
+| `docs/plans/` | Plans: active ones at the top, shipped ones in `implemented/`. |
 
 ## 7. License
 

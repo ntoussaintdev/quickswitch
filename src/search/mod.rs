@@ -3,10 +3,18 @@
 //! Nothing here holds COM objects or long-lived native handles. A window
 //! handle is stored as a plain `isize` and re-validated before use.
 
+pub mod browser_tabs;
+pub mod browsers;
 pub mod explorer_tabs;
 pub mod matcher;
+pub mod uia;
+pub mod worker;
 
 use std::path::{Path, PathBuf};
+
+use browsers::{BrowserSpec, BrowserWindow};
+
+use crate::actions::web::{self, Engine};
 
 /// What happens when a result is chosen.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -25,8 +33,23 @@ pub enum Target {
         nth: usize,
         path: Option<PathBuf>,
     },
+    /// One browser or Windows Terminal tab. `key` names the tab element the
+    /// worker kept from its latest scan; `name` (the raw accessible name) and
+    /// `nth` (its rank among same-named tabs of that window) find it again if
+    /// that element is gone.
+    BrowserTab {
+        window_hwnd: isize,
+        key: u64,
+        name: String,
+        nth: usize,
+        terminal: bool,
+    },
     OpenFolder {
         path: PathBuf,
+    },
+    /// Open this address in the default browser (web search or website).
+    Web {
+        url: String,
     },
 }
 
@@ -35,7 +58,10 @@ pub enum Target {
 pub enum Kind {
     Window,
     ExplorerTab,
+    BrowserTab,
+    TerminalTab,
     Folder,
+    Web,
 }
 
 impl Kind {
@@ -43,7 +69,10 @@ impl Kind {
         match self {
             Kind::Window => "Window",
             Kind::ExplorerTab => "Explorer tab",
+            Kind::BrowserTab => "Browser tab",
+            Kind::TerminalTab => "Terminal tab",
             Kind::Folder => "Folder",
+            Kind::Web => "Web",
         }
     }
 }
@@ -73,7 +102,10 @@ impl SearchItem {
         match self.target {
             Target::Window { .. } => Kind::Window,
             Target::ExplorerTab { .. } => Kind::ExplorerTab,
+            Target::BrowserTab { terminal: false, .. } => Kind::BrowserTab,
+            Target::BrowserTab { terminal: true, .. } => Kind::TerminalTab,
             Target::OpenFolder { .. } => Kind::Folder,
+            Target::Web { .. } => Kind::Web,
         }
     }
 
@@ -82,7 +114,7 @@ impl SearchItem {
         match &self.target {
             Target::ExplorerTab { path, .. } => path.as_deref(),
             Target::OpenFolder { path } => Some(path),
-            Target::Window { .. } => None,
+            Target::Window { .. } | Target::BrowserTab { .. } | Target::Web { .. } => None,
         }
     }
 }
@@ -122,6 +154,10 @@ impl WindowInfo {
     pub fn is_explorer(&self) -> bool {
         self.class_name == "CabinetWClass"
     }
+
+    pub fn browser(&self) -> Option<&'static BrowserSpec> {
+        browsers::browser_of(&self.class_name, &self.process)
+    }
 }
 
 /// One Explorer tab reported by the worker.
@@ -141,17 +177,51 @@ pub struct TabInfo {
     pub z: usize,
 }
 
-/// Results for one palette opening: open windows first (Explorer windows
-/// replaced by their tabs once the worker answers), then remembered folders.
+/// One browser or Windows Terminal tab reported by the worker.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BrowserTabInfo {
+    pub window_hwnd: isize,
+    /// Worker's handle for the tab element (valid until its next scan).
+    pub key: u64,
+    /// Accessible name as the browser reports it.
+    pub raw_name: String,
+    /// Title as shown on the tab.
+    pub title: String,
+    /// Grey text: browser name, plus the profile when known ("Edge · Work");
+    /// for Terminal, "Terminal" plus the tab number when titles repeat.
+    pub browser: String,
+    /// Rank among tabs of the same window with the same raw name.
+    pub nth: usize,
+    /// The tab the window is showing.
+    pub selected: bool,
+    /// A Windows Terminal tab rather than a browser tab.
+    pub terminal: bool,
+}
+
+/// Results for one palette opening, in three ranges:
+/// 1. listed: open windows, Explorer tabs and each browser window's shown tab
+///    (what an empty query lists);
+/// 2. searched only: the other browser tabs;
+/// 3. remembered folders.
 #[derive(Debug, Default)]
 pub struct Snapshot {
     /// Incremented on every open; worker answers for older generations are ignored.
     pub generation: u64,
-    /// Open windows and tabs, then remembered folders from `open_len` on.
+    /// All results, ranges as above.
     pub items: Vec<SearchItem>,
+    listed_len: usize,
     open_len: usize,
     windows: Vec<WindowInfo>,
     tabs_merged: bool,
+    browser_tabs_merged: bool,
+}
+
+/// Which range of `Snapshot::items` an item is in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Range {
+    Listed,
+    SearchedOnly,
+    History,
 }
 
 impl Snapshot {
@@ -159,16 +229,23 @@ impl Snapshot {
         let items: Vec<SearchItem> = windows.iter().map(window_item).collect();
         Snapshot {
             generation,
+            listed_len: items.len(),
             open_len: items.len(),
             items,
             windows,
             tabs_merged: false,
+            browser_tabs_merged: false,
         }
     }
 
-    /// Open windows and tabs only.
+    /// Open windows and tabs, including browser tabs that are searched only.
     pub fn open_items(&self) -> &[SearchItem] {
         &self.items[..self.open_len]
+    }
+
+    /// What an empty query lists: open windows and tabs, one row per browser window.
+    pub fn listed_items(&self) -> &[SearchItem] {
+        &self.items[..self.listed_len]
     }
 
     /// Replace the remembered folders. Folders that are open in a tab are
@@ -195,8 +272,42 @@ impl Snapshot {
             .collect()
     }
 
+    /// Browser windows to read tabs from, in window order.
+    pub fn browser_windows(&self) -> Vec<BrowserWindow> {
+        self.windows
+            .iter()
+            .filter_map(|w| {
+                w.browser().map(|spec| BrowserWindow {
+                    hwnd: w.hwnd,
+                    spec,
+                    title: w.title.clone(),
+                })
+            })
+            .collect()
+    }
+
     pub fn tabs_merged(&self) -> bool {
         self.tabs_merged
+    }
+
+    pub fn browser_tabs_merged(&self) -> bool {
+        self.browser_tabs_merged
+    }
+
+    /// Split into (listed, searched only, history).
+    fn take_ranges(&mut self) -> (Vec<SearchItem>, Vec<SearchItem>, Vec<SearchItem>) {
+        let history = self.items.split_off(self.open_len);
+        let searched = self.items.split_off(self.listed_len);
+        let listed = std::mem::take(&mut self.items);
+        (listed, searched, history)
+    }
+
+    fn put_ranges(&mut self, listed: Vec<SearchItem>, searched: Vec<SearchItem>, history: Vec<SearchItem>) {
+        self.listed_len = listed.len();
+        self.open_len = listed.len() + searched.len();
+        self.items = listed;
+        self.items.extend(searched);
+        self.items.extend(history);
     }
 
     /// Merge worker tab results. Returns false (and changes nothing) for a
@@ -210,28 +321,64 @@ impl Snapshot {
         if generation != self.generation {
             return false;
         }
-        let history = self.items.split_off(self.open_len);
-        let mut new_items = Vec::with_capacity(self.items.len() + tabs.len());
-        for item in self.items.drain(..) {
+        let (listed, searched, history) = self.take_ranges();
+        let mut new_listed = Vec::with_capacity(listed.len() + tabs.len());
+        for item in listed {
             let hwnd = match item.target {
                 Target::Window { hwnd } => hwnd,
                 _ => {
-                    new_items.push(item);
+                    new_listed.push(item);
                     continue;
                 }
             };
             let mut window_tabs: Vec<&TabInfo> = tabs.iter().filter(|t| t.explorer_hwnd == hwnd).collect();
             if window_tabs.is_empty() {
-                new_items.push(item);
+                new_listed.push(item);
                 continue;
             }
             window_tabs.sort_by_key(|t| (!t.active, t.z));
-            new_items.extend(window_tabs.into_iter().map(|t| tab_item(t, home)));
+            new_listed.extend(window_tabs.into_iter().map(|t| tab_item(t, home)));
         }
-        self.items = new_items;
-        self.open_len = self.items.len();
+        self.put_ranges(new_listed, searched, Vec::new());
         self.set_history(history);
         self.tabs_merged = true;
+        true
+    }
+
+    /// Merge browser tabs. Each browser window's row becomes its shown tab
+    /// (listed); its other tabs are searched only, in tab-strip order.
+    /// Windows that reported no tabs keep their window row. Returns false
+    /// (and changes nothing) for a stale generation.
+    pub fn merge_browser_tabs(&mut self, generation: u64, tabs: &[BrowserTabInfo]) -> bool {
+        if generation != self.generation {
+            return false;
+        }
+        let (listed, mut searched, history) = self.take_ranges();
+        let mut new_listed = Vec::with_capacity(listed.len());
+        for item in listed {
+            let hwnd = match item.target {
+                Target::Window { hwnd } => hwnd,
+                _ => {
+                    new_listed.push(item);
+                    continue;
+                }
+            };
+            let window_tabs: Vec<&BrowserTabInfo> = tabs.iter().filter(|t| t.window_hwnd == hwnd).collect();
+            if window_tabs.is_empty() {
+                new_listed.push(item);
+                continue;
+            }
+            let shown = window_tabs.iter().position(|t| t.selected).unwrap_or(0);
+            for (i, t) in window_tabs.into_iter().enumerate() {
+                if i == shown {
+                    new_listed.push(browser_tab_item(t));
+                } else {
+                    searched.push(browser_tab_item(t));
+                }
+            }
+        }
+        self.put_ranges(new_listed, searched, history);
+        self.browser_tabs_merged = true;
         true
     }
 
@@ -244,39 +391,42 @@ impl Snapshot {
             .find(|i| matches!(i.target, Target::ExplorerTab { .. }) && i.folder().is_some_and(|p| path_key(p) == key))
     }
 
+    /// Keep the items for which `keep` is true, keeping the ranges in step.
+    fn retain(&mut self, mut keep: impl FnMut(Range, &SearchItem) -> bool) {
+        let (listed, searched, history) = self.take_ranges();
+        let listed = listed.into_iter().filter(|i| keep(Range::Listed, i)).collect();
+        let searched = searched.into_iter().filter(|i| keep(Range::SearchedOnly, i)).collect();
+        let history = history.into_iter().filter(|i| keep(Range::History, i)).collect();
+        self.put_ranges(listed, searched, history);
+    }
+
     /// Drop every result that belongs to a window that no longer exists.
     pub fn remove_window(&mut self, gone: isize) {
-        let before = self.items.len();
-        let open_len = self.open_len;
-        let mut idx = 0;
-        let mut removed_open = 0;
-        self.items.retain(|i| {
-            let keep = match i.target {
-                Target::Window { hwnd } => hwnd != gone,
-                Target::ExplorerTab { explorer_hwnd, .. } => explorer_hwnd != gone,
-                Target::OpenFolder { .. } => true,
-            };
-            if !keep && idx < open_len {
-                removed_open += 1;
-            }
-            idx += 1;
-            keep
+        self.retain(|_, i| match i.target {
+            Target::Window { hwnd } => hwnd != gone,
+            Target::ExplorerTab { explorer_hwnd, .. } => explorer_hwnd != gone,
+            Target::BrowserTab { window_hwnd, .. } => window_hwnd != gone,
+            Target::OpenFolder { .. } | Target::Web { .. } => true,
         });
-        debug_assert!(self.items.len() <= before);
-        self.open_len -= removed_open;
         self.windows.retain(|w| w.hwnd != gone);
+    }
+
+    /// Drop one result (e.g. a browser tab that has closed).
+    pub fn remove_item(&mut self, item: &SearchItem) {
+        let mut removed = false;
+        self.retain(|_, i| {
+            if !removed && i == item {
+                removed = true;
+                return false;
+            }
+            true
+        });
     }
 
     /// Drop a remembered folder (e.g. it no longer exists).
     pub fn remove_folder(&mut self, path: &Path) {
         let key = path_key(path);
-        let open_len = self.open_len;
-        let mut idx = 0;
-        self.items.retain(|i| {
-            let keep = idx < open_len || i.folder().is_none_or(|p| path_key(p) != key);
-            idx += 1;
-            keep
-        });
+        self.retain(|range, i| range != Range::History || i.folder().is_none_or(|p| path_key(p) != key));
     }
 }
 
@@ -356,6 +506,29 @@ pub fn tab_item(t: &TabInfo, home: &Path) -> SearchItem {
     }
 }
 
+/// Item for one browser or Terminal tab. The recent key holds a hash of the title, not
+/// the title, so page titles are not written to `config.toml`.
+pub fn browser_tab_item(t: &BrowserTabInfo) -> SearchItem {
+    SearchItem {
+        title: t.title.clone(),
+        subtitle: t.browser.clone(),
+        target: Target::BrowserTab {
+            window_hwnd: t.window_hwnd,
+            key: t.key,
+            name: t.raw_name.clone(),
+            nth: t.nth,
+            terminal: t.terminal,
+        },
+        recent_key: format!(
+            "{}:{}|{:016x}",
+            if t.terminal { "term" } else { "web" },
+            t.browser.to_lowercase(),
+            browsers::title_hash(&t.title.to_lowercase())
+        ),
+        match_on: MatchOn::Text,
+    }
+}
+
 /// Item for a folder that is not open in Explorer.
 pub fn folder_item(path: PathBuf, home: &Path) -> SearchItem {
     SearchItem {
@@ -365,4 +538,180 @@ pub fn folder_item(path: PathBuf, home: &Path) -> SearchItem {
         target: Target::OpenFolder { path },
         match_on: MatchOn::Path,
     }
+}
+
+/// Where a filter puts the web row.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WebMode {
+    /// No web row.
+    None,
+    /// Web search (or "Visit") row first, then the matches (`web:`, `browser:`).
+    First,
+    /// Only an "Ask ChatGPT" row (`gpt:`).
+    Gpt,
+}
+
+/// A type filter typed at the start of the query, e.g. `browser: mail`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Qualifier {
+    /// Kinds of result that pass the filter.
+    pub kinds: &'static [Kind],
+    /// What is shown, e.g. "browser tabs".
+    pub label: &'static str,
+    pub web: WebMode,
+    /// Shown instead of results when nothing is typed after the filter and
+    /// there is nothing of its kinds to list.
+    pub empty: &'static str,
+}
+
+const ALL_TABS: &[Kind] = &[Kind::ExplorerTab, Kind::BrowserTab, Kind::TerminalTab];
+const FOLDERS: &[Kind] = &[Kind::Folder, Kind::ExplorerTab];
+
+/// Filter words. Any prefix of two or more letters works when it names one
+/// filter (`br:`, `term:`), and so does a plural (`windows:`). One letter is
+/// left alone: `c:` is a drive.
+const QUALIFIERS: &[(&str, Qualifier)] = &[
+    (
+        "window",
+        Qualifier {
+            kinds: &[Kind::Window],
+            label: "windows",
+            web: WebMode::None,
+            empty: "No windows are open",
+        },
+    ),
+    (
+        "explorer",
+        Qualifier {
+            kinds: &[Kind::ExplorerTab],
+            label: "Explorer tabs",
+            web: WebMode::None,
+            empty: "No Explorer tabs are open",
+        },
+    ),
+    (
+        "browser",
+        Qualifier {
+            kinds: &[Kind::BrowserTab],
+            label: "browser tabs",
+            web: WebMode::First,
+            empty: "Type to search the web, or your browser tabs once they're read",
+        },
+    ),
+    (
+        "web",
+        Qualifier {
+            kinds: &[Kind::BrowserTab],
+            label: "browser tabs",
+            web: WebMode::First,
+            empty: "Type to search the web, or your browser tabs once they're read",
+        },
+    ),
+    (
+        "terminal",
+        Qualifier {
+            kinds: &[Kind::TerminalTab],
+            label: "Terminal tabs",
+            web: WebMode::None,
+            empty: "No Windows Terminal tabs are open",
+        },
+    ),
+    (
+        "tab",
+        Qualifier {
+            kinds: ALL_TABS,
+            label: "tabs",
+            web: WebMode::None,
+            empty: "No Explorer, browser or Terminal tabs are open",
+        },
+    ),
+    (
+        "folder",
+        Qualifier {
+            kinds: FOLDERS,
+            label: "folders",
+            web: WebMode::None,
+            empty: "No folders yet: open some in Explorer or type a path like ~/Documents",
+        },
+    ),
+    (
+        "dir",
+        Qualifier {
+            kinds: FOLDERS,
+            label: "folders",
+            web: WebMode::None,
+            empty: "No folders yet: open some in Explorer or type a path like ~/Documents",
+        },
+    ),
+    (
+        "gpt",
+        Qualifier {
+            kinds: &[],
+            label: "ChatGPT",
+            web: WebMode::Gpt,
+            empty: "Type a question to ask ChatGPT",
+        },
+    ),
+    (
+        "chatgpt",
+        Qualifier {
+            kinds: &[],
+            label: "ChatGPT",
+            web: WebMode::Gpt,
+            empty: "Type a question to ask ChatGPT",
+        },
+    ),
+];
+
+/// Split `browser: mail` into the browser-tab filter and `mail`. `None` when
+/// the query doesn't start with a known filter word and a colon.
+pub fn parse_qualifier(query: &str) -> Option<(Qualifier, &str)> {
+    let (word, rest) = query.trim_start().split_once(':')?;
+    if word.len() < 2 || !word.chars().all(|c| c.is_ascii_alphabetic()) {
+        return None;
+    }
+    let word = word.to_ascii_lowercase();
+    let mut found: Option<Qualifier> = None;
+    for (name, q) in QUALIFIERS {
+        let plural = word.strip_suffix('s') == Some(name);
+        if name.starts_with(&word) || plural {
+            match found {
+                Some(f) if f != *q => return None, // ambiguous
+                _ => found = Some(*q),
+            }
+        }
+    }
+    found.map(|q| (q, rest.trim_start()))
+}
+
+/// The web row for `text`: "Visit <site>" when the text is clearly a
+/// website, otherwise "<engine action> “text”". `None` for empty text.
+/// With `gpt`, always "Ask ChatGPT “text”".
+pub fn web_item(text: &str, engine: &Engine, gpt: bool) -> Option<SearchItem> {
+    let text = text.trim();
+    if text.is_empty() {
+        return None;
+    }
+    let (title, url) = if gpt {
+        let chatgpt = web::chatgpt();
+        (
+            format!("{} \u{201c}{text}\u{201d}", chatgpt.action),
+            chatgpt.url_for(text),
+        )
+    } else if let Some(url) = web::website_url(text) {
+        (format!("Visit {text}"), url)
+    } else {
+        (
+            format!("{} \u{201c}{text}\u{201d}", engine.action),
+            engine.url_for(text),
+        )
+    };
+    Some(SearchItem {
+        title,
+        subtitle: "Ctrl+Enter from any row".into(),
+        target: Target::Web { url },
+        // Never stored: web rows are not remembered.
+        recent_key: String::new(),
+        match_on: MatchOn::Text,
+    })
 }

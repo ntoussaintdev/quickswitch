@@ -47,6 +47,11 @@ fn window_text(h: HWND) -> String {
     String::from_utf16_lossy(&buf[..n.max(0) as usize])
 }
 
+/// A window's current title.
+pub fn window_title(h: isize) -> String {
+    window_text(hwnd(h))
+}
+
 pub fn class_name(h: HWND) -> String {
     let mut buf = [0u16; 256];
     let n = unsafe { GetClassNameW(h, &mut buf) };

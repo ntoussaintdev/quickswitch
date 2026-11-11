@@ -1,10 +1,8 @@
-//! Shortcut settings view: three modifier dropdowns and a key dropdown.
-//!
-//! Shown in the popup window instead of the palette, opened from the tray
-//! menu's "Change shortcut…". Keys can't be recorded by pressing them because
-//! Windows handles many Win+key combinations before an app sees them.
+//! Shortcut tab of the settings view: three modifier dropdowns and a key
+//! dropdown. Keys can't be recorded by pressing them because Windows handles
+//! many Win+key combinations before an app sees them.
 
-use eframe::egui::{self, Align, ComboBox, Key, Layout, Modifiers, RichText, Stroke};
+use eframe::egui::{self, Align, ComboBox, Key, Layout, Modifiers, RichText};
 
 use super::palette::Status;
 use super::styles::*;
@@ -63,18 +61,6 @@ impl ShortcutEditor {
             }
         }
 
-        let rect = ui.max_rect();
-        ui.painter()
-            .rect(rect, 8.0, BG, Stroke::new(1.0, BORDER), egui::StrokeKind::Inside);
-        let inner = rect.shrink2(egui::vec2(20.0, 16.0));
-        let mut content = ui.new_child(
-            egui::UiBuilder::new()
-                .max_rect(inner)
-                .layout(Layout::top_down(Align::Min)),
-        );
-        let ui = &mut content;
-
-        ui.label(RichText::new("Keyboard shortcut").size(SEARCH_FONT));
         ui.label(RichText::new(format!("Opens QuickSwitch from anywhere. Current: {}", self.current)).color(TEXT_WEAK));
         ui.add_space(18.0);
 

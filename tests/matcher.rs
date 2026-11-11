@@ -207,3 +207,28 @@ fn folder_names_match_for_suggestions() {
     assert!(r.match_name("Projects", "zzz").is_none());
     assert_eq!(r.match_name("Projects", ""), Some((0, Vec::new())));
 }
+
+#[test]
+fn browser_tab_matches_on_title_and_browser_name() {
+    use quickswitch::search::{BrowserTabInfo, browser_tab_item};
+    let tab = |key, browser: &str| {
+        browser_tab_item(&BrowserTabInfo {
+            window_hwnd: key as isize,
+            key,
+            raw_name: "Pull requests · quickswitch".into(),
+            title: "Pull requests · quickswitch".into(),
+            browser: browser.into(),
+            nth: 0,
+            selected: false,
+            terminal: false,
+        })
+    };
+    let items = vec![
+        tab(1, "Chrome"),
+        tab(2, "Edge · Work"),
+        item(3, "Inbox - Outlook", "OUTLOOK"),
+    ];
+    assert_eq!(rank(&items, "pull req", &[]), vec![0, 1]);
+    assert_eq!(rank(&items, "edge pull", &[]), vec![1]);
+    assert_eq!(rank(&items, "work pull", &[]), vec![1]);
+}

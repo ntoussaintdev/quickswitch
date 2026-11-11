@@ -18,6 +18,7 @@ use crossbeam_channel::Receiver;
 use eframe::egui::{self, ViewportCommand};
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 
+use crate::actions::web::Engine;
 use crate::actions::{self, paths};
 use crate::command::{AppCommand, CommandSender};
 use crate::config::Config;
@@ -25,12 +26,15 @@ use crate::os::hotkey::Hotkeys;
 use crate::os::instance::{PrimaryInstance, Signal};
 use crate::os::tray::Tray;
 use crate::os::{self, windows as win};
-use crate::search::explorer_tabs::{Request, TabWorker};
+use crate::search::browsers::Engine as TabEngine;
 use crate::search::matcher::Ranker;
-use crate::search::{SearchItem, Shown, Snapshot, Target, display_path, folder_item};
+use crate::search::worker::{Request, TabWorker};
+use crate::search::{
+    Kind, Qualifier, SearchItem, Shown, Snapshot, Target, WebMode, display_path, folder_item, parse_qualifier, web_item,
+};
 use crate::startup;
 use crate::ui::palette::{Palette, PaletteAction, Status};
-use crate::ui::shortcut::{ShortcutAction, ShortcutEditor};
+use crate::ui::settings::{Settings, SettingsAction};
 use crate::ui::styles;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -56,8 +60,8 @@ pub struct QuickSwitchApp {
 
     ranker: Ranker,
     palette: Palette,
-    /// The shortcut settings view, shown instead of the palette while set.
-    shortcut_editor: Option<ShortcutEditor>,
+    /// The settings view, shown instead of the palette while set.
+    settings: Option<Settings>,
     snapshot: Snapshot,
     /// Ranked results currently on screen.
     shown: Vec<Shown>,
@@ -75,8 +79,15 @@ pub struct QuickSwitchApp {
     /// Re-center once after showing (a monitor/DPI change can shift the window).
     place_again: Option<(windows::Win32::Foundation::RECT, f32)>,
     focus_attempts: u8,
-    /// Explorer window we asked the worker to switch a tab in.
+    /// Explorer or browser window we asked the worker to switch a tab in.
     pending_tab: Option<isize>,
+    /// The browser tab row being switched to (dropped if the tab is gone).
+    pending_browser: Option<SearchItem>,
+    /// Waiting for the worker's Explorer tabs / browser tabs.
+    explorer_pending: bool,
+    browsers_pending: bool,
+    /// Footer text while browser / Terminal tabs are read.
+    browsers_label: &'static str,
     exiting: bool,
 }
 
@@ -124,6 +135,8 @@ impl QuickSwitchApp {
             sender.clone(),
             hotkey_label.as_deref().unwrap_or("no shortcut"),
             startup::is_enabled(),
+            config.browser_tabs,
+            config.web_search,
         ) {
             Ok(t) => Some(t),
             Err(e) => {
@@ -135,7 +148,7 @@ impl QuickSwitchApp {
             let mut msg = problems.join("\n");
             msg.push_str(
                 "\n\nQuickSwitch is still running: click its tray icon, or run QuickSwitch.exe again, to open search. \
-                 Pick another shortcut with \u{201c}Change shortcut\u{2026}\u{201d} in the tray menu.",
+                 Pick another shortcut in \u{201c}Settings\u{2026}\u{201d} in the tray menu.",
             );
             if let Some(t) = &tray {
                 t.set_tooltip("QuickSwitch (shortcut unavailable; click to open)");
@@ -158,7 +171,7 @@ impl QuickSwitchApp {
             exe: std::env::current_exe().unwrap_or_default(),
             ranker: Ranker::default(),
             palette: Palette::default(),
-            shortcut_editor: None,
+            settings: None,
             snapshot: Snapshot::default(),
             shown: Vec::new(),
             path_mode: false,
@@ -171,6 +184,10 @@ impl QuickSwitchApp {
             place_again: None,
             focus_attempts: 0,
             pending_tab: None,
+            pending_browser: None,
+            explorer_pending: false,
+            browsers_pending: false,
+            browsers_label: "Reading browser tabs…",
             exiting: false,
         }
     }
@@ -191,21 +208,50 @@ impl QuickSwitchApp {
         self.snapshot.set_history(self.history_items());
         self.dir_cache = None;
         self.palette.reset();
-        if !self.snapshot.explorer_windows().is_empty()
-            && let Some(w) = &self.worker
-        {
-            w.request(Request::Scan {
-                generation: self.generation,
-            });
-            self.palette.busy = Some("Reading Explorer tabs…".into());
+        self.pending_tab = None;
+        self.pending_browser = None;
+        self.explorer_pending = false;
+        self.browsers_pending = false;
+        if let Some(w) = &self.worker {
+            if !self.snapshot.explorer_windows().is_empty() {
+                w.request(Request::Scan {
+                    generation: self.generation,
+                });
+                self.explorer_pending = true;
+            }
+            let config = &self.config;
+            let browsers: Vec<_> = self
+                .snapshot
+                .browser_windows()
+                .into_iter()
+                .filter(|b| {
+                    if b.spec.engine == TabEngine::Terminal {
+                        config.terminal_tabs
+                    } else {
+                        config.browser_tabs
+                    }
+                })
+                .collect();
+            if !browsers.is_empty() {
+                self.browsers_label = if browsers.iter().all(|b| b.spec.engine == TabEngine::Terminal) {
+                    "Reading Terminal tabs…"
+                } else {
+                    "Reading browser tabs…"
+                };
+                w.request(Request::ScanBrowsers {
+                    generation: self.generation,
+                    windows: browsers,
+                });
+                self.browsers_pending = true;
+            }
         }
+        self.update_busy();
         self.refresh_results();
 
         win::place(self.hwnd, work, scale, styles::POPUP_SIZE);
         ctx.send_viewport_cmd(ViewportCommand::Visible(true));
         self.visible = true;
         self.had_focus = false;
-        self.pending_tab = None;
         self.place_again = Some((work, scale));
         self.focus_attempts = 3;
         ctx.request_repaint();
@@ -216,8 +262,11 @@ impl QuickSwitchApp {
             ctx.send_viewport_cmd(ViewportCommand::Visible(false));
         }
         self.visible = false;
-        self.shortcut_editor = None;
+        self.settings = None;
         self.pending_tab = None;
+        self.pending_browser = None;
+        self.explorer_pending = false;
+        self.browsers_pending = false;
         self.palette.busy = None;
         // Results hold window handles; don't keep them around while hidden.
         self.shown.clear();
@@ -256,10 +305,24 @@ impl QuickSwitchApp {
         }
     }
 
-    /// Tray "Change shortcut…": show the popup with the settings view.
-    fn edit_shortcut(&mut self, ctx: &egui::Context) {
+    /// Tray "Settings…": show the popup with the settings view.
+    fn open_settings(&mut self, ctx: &egui::Context) {
         self.open(ctx);
-        self.shortcut_editor = Some(ShortcutEditor::new(&self.config.hotkey));
+        self.settings = Some(Settings::new(
+            &self.config.hotkey,
+            &self.config.search_engine,
+            &self.config.custom_search_url,
+        ));
+    }
+
+    /// Use the picked search engine and return to the search.
+    fn save_web(&mut self, engine: String, custom_url: String) {
+        self.config.search_engine = engine;
+        self.config.custom_search_url = custom_url;
+        self.save_config();
+        self.settings = None;
+        self.palette.request_focus();
+        self.palette.status = Some(Status::Info(format!("Web search: {}", self.engine().name)));
     }
 
     /// Switch to the picked shortcut. On failure the old one stays active and
@@ -276,13 +339,13 @@ impl QuickSwitchApp {
                 }
                 self.config.hotkey = text.clone();
                 self.save_config();
-                self.shortcut_editor = None;
+                self.settings = None;
                 self.palette.request_focus();
                 self.palette.status = Some(Status::Info(format!("Shortcut changed to {text}")));
             }
             Err(e) => {
-                if let Some(editor) = self.shortcut_editor.as_mut() {
-                    editor.status = Some(Status::Error(e));
+                if let Some(settings) = self.settings.as_mut() {
+                    settings.shortcut.status = Some(Status::Error(e));
                 }
             }
         }
@@ -311,21 +374,59 @@ impl QuickSwitchApp {
     fn refresh_results(&mut self) {
         let query = self.palette.query.clone();
         self.palette.status = None;
+        self.palette.empty_hint = None;
         self.path_mode = paths::looks_like_path(&query);
         if self.path_mode {
             self.shown = self.folder_suggestions(&query);
             return;
         }
         let limit = self.config.max_results;
-        // Remembered folders are searchable, but an empty query lists only
-        // what is open right now.
-        let pool = if query.trim().is_empty() {
-            self.snapshot.open_items()
-        } else {
-            &self.snapshot.items[..]
+        let qualifier = parse_qualifier(&query);
+
+        // A type filter ("browser: mail") searches every result of its kinds,
+        // the ones an empty query hides included. Without one, remembered
+        // folders and background tabs are searchable, but an empty query
+        // lists only open windows and tabs, one row per browser window.
+        let (pool, text, web): (Vec<SearchItem>, &str, WebMode) = match qualifier {
+            Some((q, rest)) => {
+                self.palette.status = Some(Status::Info(match q.web {
+                    WebMode::Gpt => "Enter asks ChatGPT in your browser".to_string(),
+                    _ => format!("Only {}", q.label),
+                }));
+                let pool = self
+                    .snapshot
+                    .items
+                    .iter()
+                    .filter(|i| q.kinds.contains(&i.kind()))
+                    .cloned()
+                    .collect();
+                (pool, rest, q.web)
+            }
+            None if query.trim().is_empty() => (self.snapshot.listed_items().to_vec(), "", WebMode::None),
+            None => (self.snapshot.items.clone(), query.as_str(), WebMode::None),
         };
-        let hits = self.ranker.rank(pool, &query, &self.config.recent, limit);
-        self.shown = hits
+
+        // The web row: first for web:/browser:, the only row for gpt:, and
+        // without a filter (when switched on) first only if nothing else
+        // matches, otherwise last.
+        let engine = self.engine();
+        let row = match web {
+            WebMode::Gpt => web_item(text, &engine, true),
+            WebMode::First => web_item(text, &engine, false),
+            WebMode::None if qualifier.is_none() && self.config.web_search => web_item(text, &engine, false),
+            WebMode::None => None,
+        };
+        let room = if row.is_some() {
+            limit.saturating_sub(1).max(1)
+        } else {
+            limit
+        };
+        let hits = if web == WebMode::Gpt {
+            Vec::new()
+        } else {
+            self.ranker.rank(&pool, text, &self.config.recent, room)
+        };
+        let mut shown: Vec<Shown> = hits
             .into_iter()
             .map(|h| Shown {
                 item: pool[h.index].clone(),
@@ -334,6 +435,54 @@ impl QuickSwitchApp {
                 completion: None,
             })
             .collect();
+        if let Some(row) = row {
+            if web != WebMode::None || shown.is_empty() {
+                shown.insert(0, Shown::plain(row));
+            } else {
+                shown.push(Shown::plain(row));
+            }
+        }
+        if shown.is_empty()
+            && let Some((q, _)) = qualifier
+        {
+            self.palette.empty_hint = Some(self.empty_hint(q, text));
+        }
+        self.shown = shown;
+    }
+
+    /// What an empty result list says under a type filter: a prompt when
+    /// nothing is typed yet, otherwise that nothing of that kind matches.
+    fn empty_hint(&self, q: Qualifier, text: &str) -> String {
+        let text = text.trim();
+        let mut hint = if text.is_empty() {
+            q.empty.to_string()
+        } else {
+            format!("No {} match \u{201c}{text}\u{201d}", q.label)
+        };
+        let reading = (self.explorer_pending && q.kinds.contains(&Kind::ExplorerTab))
+            || (self.browsers_pending && (q.kinds.contains(&Kind::BrowserTab) || q.kinds.contains(&Kind::TerminalTab)));
+        if reading {
+            hint.push_str(" (still reading tabs\u{2026})");
+        }
+        hint
+    }
+
+    /// The search engine chosen in Settings.
+    fn engine(&self) -> Engine {
+        Engine::from_settings(&self.config.search_engine, &self.config.custom_search_url)
+    }
+
+    /// Ctrl+Enter: search the web for the typed text (after any filter word;
+    /// `gpt:` asks ChatGPT), whatever row is selected.
+    fn web_search_now(&mut self, ctx: &egui::Context) {
+        let query = self.palette.query.clone();
+        let (text, gpt) = match parse_qualifier(&query) {
+            Some((q, rest)) => (rest.to_string(), q.web == WebMode::Gpt),
+            None => (query.clone(), false),
+        };
+        if let Some(item) = web_item(&text, &self.engine(), gpt) {
+            self.activate_item(ctx, item);
+        }
     }
 
     /// Folder input: the subfolders of the typed folder that match the last,
@@ -487,9 +636,42 @@ impl QuickSwitchApp {
                         nth: *nth,
                     });
                     self.pending_tab = Some(explorer);
-                    self.palette.busy = Some("Switching tab…".into());
+                    self.update_busy();
                 }
             }
+            Target::BrowserTab {
+                window_hwnd,
+                key,
+                name,
+                nth,
+                ..
+            } => {
+                let window = *window_hwnd;
+                if !win::is_window(window) {
+                    self.fail(window, "That window has closed.".into());
+                    return;
+                }
+                self.remember(&item);
+                // A minimized window has no tab strip to read: restore it first.
+                if win::is_minimized(window) {
+                    let _ = win::activate(window);
+                }
+                if let Some(w) = &self.worker {
+                    w.request(Request::SelectBrowserTab {
+                        window_hwnd: window,
+                        key: *key,
+                        name: name.clone(),
+                        nth: *nth,
+                    });
+                    self.pending_tab = Some(window);
+                    self.pending_browser = Some(item.clone());
+                    self.update_busy();
+                }
+            }
+            Target::Web { url } => match actions::open_url(url) {
+                Ok(()) => self.hide(ctx),
+                Err(e) => self.palette.status = Some(Status::Error(e)),
+            },
             Target::OpenFolder { path } => {
                 // Already open in a tab (the scan may have finished after the
                 // row was built): switch to it instead of opening another.
@@ -525,6 +707,19 @@ impl QuickSwitchApp {
         self.palette.status = Some(Status::Error(msg));
     }
 
+    /// Footer progress text for whatever the worker is still doing.
+    fn update_busy(&mut self) {
+        self.palette.busy = if self.pending_tab.is_some() {
+            Some("Switching tab…".into())
+        } else if self.explorer_pending {
+            Some("Reading Explorer tabs…".into())
+        } else if self.browsers_pending {
+            Some(self.browsers_label.into())
+        } else {
+            None
+        };
+    }
+
     fn remember(&mut self, item: &SearchItem) {
         self.config.push_recent(&item.recent_key);
         if let Some(folder) = item.folder() {
@@ -543,8 +738,22 @@ impl QuickSwitchApp {
                 }
             }
             AppCommand::Open => self.open(ctx),
-            AppCommand::EditShortcut => self.edit_shortcut(ctx),
+            AppCommand::OpenSettings => self.open_settings(ctx),
+            AppCommand::ToggleWebSearch => {
+                self.config.web_search = !self.config.web_search;
+                self.save_config();
+                if let Some(t) = &self.tray {
+                    t.set_web_search_checked(self.config.web_search);
+                }
+            }
             AppCommand::ToggleStartup => self.toggle_startup(),
+            AppCommand::ToggleBrowserTabs => {
+                self.config.browser_tabs = !self.config.browser_tabs;
+                self.save_config();
+                if let Some(t) = &self.tray {
+                    t.set_browser_tabs_checked(self.config.browser_tabs);
+                }
+            }
             AppCommand::Exit => self.exit(ctx),
             AppCommand::Tabs { generation, tabs } => {
                 // Late answers (palette closed or reopened since) are ignored.
@@ -552,10 +761,45 @@ impl QuickSwitchApp {
                     if self.config.note_folders(tabs.iter().filter_map(|t| t.path.as_deref())) {
                         self.config_dirty = true;
                     }
-                    if self.pending_tab.is_none() {
-                        self.palette.busy = None;
-                    }
+                    self.explorer_pending = false;
+                    self.update_busy();
                     self.refresh_results();
+                }
+            }
+            AppCommand::BrowserTabs { generation, tabs } => {
+                if self.visible && self.snapshot.merge_browser_tabs(generation, &tabs) {
+                    self.browsers_pending = false;
+                    self.update_busy();
+                    self.refresh_results();
+                }
+            }
+            AppCommand::BrowserTabSelected {
+                window_hwnd,
+                result,
+                gone,
+            } => {
+                if self.pending_tab != Some(window_hwnd) {
+                    return;
+                }
+                self.pending_tab = None;
+                let item = self.pending_browser.take();
+                self.update_busy();
+                let result = result.and_then(|()| {
+                    if win::is_foreground(window_hwnd) {
+                        Ok(())
+                    } else {
+                        win::activate(window_hwnd)
+                    }
+                });
+                match result {
+                    Ok(()) => self.hide(ctx),
+                    Err(e) => {
+                        if gone && let Some(item) = item {
+                            self.snapshot.remove_item(&item);
+                            self.refresh_results();
+                        }
+                        self.fail(window_hwnd, e);
+                    }
                 }
             }
             AppCommand::TabSelected { explorer_hwnd, result } => {
@@ -563,7 +807,7 @@ impl QuickSwitchApp {
                     return;
                 }
                 self.pending_tab = None;
-                self.palette.busy = None;
+                self.update_busy();
                 let bring_forward = |()| {
                     if win::is_foreground(explorer_hwnd) {
                         Ok(())
@@ -636,10 +880,11 @@ impl eframe::App for QuickSwitchApp {
             _ => {}
         }
 
-        if let Some(editor) = self.shortcut_editor.as_mut() {
-            match editor.show(ui) {
-                Some(ShortcutAction::Save(text)) => self.save_shortcut(text),
-                Some(ShortcutAction::Cancel) => self.hide(&ctx),
+        if let Some(settings) = self.settings.as_mut() {
+            match settings.show(ui) {
+                Some(SettingsAction::SaveShortcut(text)) => self.save_shortcut(text),
+                Some(SettingsAction::SaveWeb { engine, custom_url }) => self.save_web(engine, custom_url),
+                Some(SettingsAction::Cancel) => self.hide(&ctx),
                 None => {}
             }
             return;
@@ -649,6 +894,7 @@ impl eframe::App for QuickSwitchApp {
             Some(PaletteAction::Hide) => self.hide(&ctx),
             Some(PaletteAction::QueryChanged | PaletteAction::Completed) => self.refresh_results(),
             Some(PaletteAction::Activate(i)) => self.activate(&ctx, i),
+            Some(PaletteAction::WebSearch) => self.web_search_now(&ctx),
             None => {}
         }
     }

@@ -106,3 +106,13 @@ fn remembered_folders_are_mru_and_deduplicated() {
     assert!(warning.is_none());
     assert_eq!(back.folders, c.folders);
 }
+
+#[test]
+fn browser_tabs_default_on_and_old_files_keep_it_on() {
+    assert!(Config::default().browser_tabs);
+    let (c, warn) = Config::from_toml("hotkey = \"Ctrl+Win+K\"\nrecent = []\n");
+    assert!(warn.is_none());
+    assert!(c.browser_tabs);
+    let (c, _) = Config::from_toml("browser_tabs = false\n");
+    assert!(!c.browser_tabs);
+}

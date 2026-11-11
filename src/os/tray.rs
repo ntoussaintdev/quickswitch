@@ -16,6 +16,8 @@ pub struct Tray {
     icon: TrayIcon,
     open_item: MenuItem,
     startup_item: CheckMenuItem,
+    browser_tabs_item: CheckMenuItem,
+    web_search_item: CheckMenuItem,
 }
 
 pub fn icon_rgba() -> (Vec<u8>, u32, u32) {
@@ -23,10 +25,18 @@ pub fn icon_rgba() -> (Vec<u8>, u32, u32) {
 }
 
 impl Tray {
-    pub fn new(sender: CommandSender, hotkey_label: &str, startup_enabled: bool) -> Result<Tray, String> {
+    pub fn new(
+        sender: CommandSender,
+        hotkey_label: &str,
+        startup_enabled: bool,
+        browser_tabs: bool,
+        web_search: bool,
+    ) -> Result<Tray, String> {
         let open_item = MenuItem::new(open_label(hotkey_label), true, None);
-        let shortcut_item = MenuItem::new("Change shortcut…", true, None);
+        let shortcut_item = MenuItem::new("Settings…", true, None);
         let startup_item = CheckMenuItem::new("Start with Windows", true, startup_enabled, None);
+        let browser_tabs_item = CheckMenuItem::new("Search browser tabs", true, browser_tabs, None);
+        let web_search_item = CheckMenuItem::new("Web search in results", true, web_search, None);
         let exit_item = MenuItem::new("Exit QuickSwitch", true, None);
 
         let menu = Menu::new();
@@ -34,12 +44,16 @@ impl Tray {
             &open_item,
             &shortcut_item,
             &startup_item,
+            &browser_tabs_item,
+            &web_search_item,
             &PredefinedMenuItem::separator(),
             &exit_item,
         ])
         .map_err(|e| e.to_string())?;
 
         let shortcut_id: MenuId = shortcut_item.id().clone();
+        let browser_tabs_id: MenuId = browser_tabs_item.id().clone();
+        let web_search_id: MenuId = web_search_item.id().clone();
         let (open_id, startup_id, exit_id): (MenuId, MenuId, MenuId) = (
             open_item.id().clone(),
             startup_item.id().clone(),
@@ -50,9 +64,13 @@ impl Tray {
             if event.id == open_id {
                 menu_sender.send(AppCommand::Open);
             } else if event.id == shortcut_id {
-                menu_sender.send(AppCommand::EditShortcut);
+                menu_sender.send(AppCommand::OpenSettings);
             } else if event.id == startup_id {
                 menu_sender.send(AppCommand::ToggleStartup);
+            } else if event.id == web_search_id {
+                menu_sender.send(AppCommand::ToggleWebSearch);
+            } else if event.id == browser_tabs_id {
+                menu_sender.send(AppCommand::ToggleBrowserTabs);
             } else if event.id == exit_id {
                 menu_sender.send(AppCommand::Exit);
             }
@@ -83,12 +101,22 @@ impl Tray {
             icon: tray,
             open_item,
             startup_item,
+            browser_tabs_item,
+            web_search_item,
         })
     }
 
     /// Show the real registry state, not merely the last click.
     pub fn set_startup_checked(&self, checked: bool) {
         self.startup_item.set_checked(checked);
+    }
+
+    pub fn set_web_search_checked(&self, checked: bool) {
+        self.web_search_item.set_checked(checked);
+    }
+
+    pub fn set_browser_tabs_checked(&self, checked: bool) {
+        self.browser_tabs_item.set_checked(checked);
     }
 
     /// Show a new shortcut in the menu and tooltip.

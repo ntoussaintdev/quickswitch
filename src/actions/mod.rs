@@ -1,6 +1,7 @@
 //! Actions taken on a selected result: switching windows/tabs and opening folders.
 
 pub mod paths;
+pub mod web;
 
 use std::path::Path;
 
@@ -35,5 +36,25 @@ pub fn open_folder(path: &Path) -> Result<(), String> {
             path.display(),
             result.0 as isize
         ))
+    }
+}
+
+/// Open a web address in the default browser.
+#[cfg(windows)]
+pub fn open_url(url: &str) -> Result<(), String> {
+    use windows::Win32::UI::Shell::ShellExecuteW;
+    use windows::Win32::UI::WindowsAndMessaging::{ASFW_ANY, AllowSetForegroundWindow, SW_SHOWNORMAL};
+    use windows::core::{HSTRING, w};
+
+    // Let the browser take the foreground.
+    unsafe {
+        let _ = AllowSetForegroundWindow(ASFW_ANY);
+    }
+    let file = HSTRING::from(url);
+    let result = unsafe { ShellExecuteW(None, w!("open"), &file, None, None, SW_SHOWNORMAL) };
+    if result.0 as isize > 32 {
+        Ok(())
+    } else {
+        Err(format!("Could not open the browser (error {})", result.0 as isize))
     }
 }

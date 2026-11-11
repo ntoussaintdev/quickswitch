@@ -36,6 +36,16 @@ pub struct Config {
     /// Folders opened from QuickSwitch or seen open in Explorer, most recent
     /// first. Searchable even when no Explorer window shows them.
     pub folders: Vec<String>,
+    /// List and switch browser tabs (tray: "Search browser tabs").
+    pub browser_tabs: bool,
+    /// List and switch Windows Terminal tabs.
+    pub terminal_tabs: bool,
+    /// Offer a web search row for typed text (tray: "Web search in results").
+    pub web_search: bool,
+    /// Search engine id (see `actions::web::ENGINES`), or "custom".
+    pub search_engine: String,
+    /// Used when `search_engine` is "custom"; `{}` marks the query.
+    pub custom_search_url: String,
 }
 
 impl Default for Config {
@@ -46,6 +56,11 @@ impl Default for Config {
             max_results: 9,
             recent: Vec::new(),
             folders: Vec::new(),
+            browser_tabs: true,
+            terminal_tabs: true,
+            web_search: true,
+            search_engine: crate::actions::web::DEFAULT_ENGINE.to_string(),
+            custom_search_url: String::new(),
         }
     }
 }

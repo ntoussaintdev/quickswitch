@@ -1,0 +1,868 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Browser tab search plan</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #12161c; --fg: #e3e8ef; --muted: #9aa5b4; --line: #2a323d; --soft: #1a2029; --accent: #7aa2ff;
+  --ok: #4ade80; --warn: #fbbf24;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #ffffff; --fg: #1c2430; --muted: #5b6675; --line: #dfe4ea; --soft: #f4f6f9; --accent: #1d4ed8;
+  --ok: #15803d; --warn: #b45309;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Arial, sans-serif; }
+.doc-top { max-width: 1400px; margin: 0 auto; padding: 14px 20px 0; display: flex; justify-content: flex-end; }
+#docTheme { font: inherit; font-size: 14px; padding: 4px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg); color: var(--muted); cursor: pointer; }
+#docTheme:hover { color: var(--fg); }
+.doc-layout { --toc-w: 220px; --toc-gap: 44px; max-width: 1400px; margin: 0 auto; padding: 14px 20px 120px; display: grid; grid-template-columns: var(--toc-w) minmax(0, 1fr); gap: var(--toc-gap); }
+nav.doc-toc { position: sticky; top: 24px; align-self: start; max-height: calc(100vh - 48px); overflow: auto; font-size: 14px; transition: opacity .2s, visibility .2s; }
+nav.doc-toc.is-hidden { opacity: 0; visibility: hidden; }
+nav.doc-toc p { font-weight: 600; margin: 0 0 10px; }
+nav.doc-toc a, .toc-panel a { display: block; padding: 5px 10px; color: var(--muted); text-decoration: none; border-left: 2px solid var(--line); }
+nav.doc-toc a:hover, .toc-panel a:hover { color: var(--fg); }
+nav.doc-toc a.is-current, .toc-panel a.is-current { color: var(--accent); border-left-color: var(--accent); font-weight: 600; }
+nav.doc-toc a.sub, .toc-panel a.sub { padding-left: 22px; font-size: 13px; }
+@media (max-width: 900px) {
+  .doc-layout { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  nav.doc-toc { position: static; max-height: none; }
+  nav.doc-toc.is-hidden { opacity: 1; visibility: visible; }
+}
+main { min-width: 0; }
+main > * { max-width: 780px; }
+main > .doc-wide { max-width: none; overflow-x: auto; margin-left: calc(-1 * (var(--toc-w) + var(--toc-gap))); margin-top: 18px; margin-bottom: 22px; }
+@media (max-width: 900px) { main > .doc-wide { margin-left: 0; } }
+.doc-wide-in { min-width: 1100px; }
+h1 { font-size: 28px; line-height: 1.25; margin: 0 0 6px; }
+h2 { font-size: 22px; margin: 44px 0 10px; scroll-margin-top: 16px; }
+h3 { font-size: 17px; margin: 24px 0 6px; scroll-margin-top: 16px; }
+ul { padding-left: 22px; } li { margin: 4px 0; }
+a { color: var(--accent); }
+code { font: 14px/1.4 Consolas, "Cascadia Mono", ui-monospace, monospace; background: var(--soft); padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--soft); padding: 10px 12px; border-radius: 6px; font: 13.5px/1.5 Consolas, "Cascadia Mono", ui-monospace, monospace; overflow-x: auto; margin: 10px 0 14px; }
+pre code { background: none; padding: 0; font: inherit; }
+.lede { color: var(--muted); margin: 0 0 8px; }
+.meta { color: var(--muted); font-size: 14px; }
+.doc-table { overflow: visible; }
+table { border-collapse: collapse; width: 100%; margin: 10px 0 14px; font-size: 15px; }
+th, td { text-align: left; vertical-align: top; padding: 7px 10px; border-bottom: 1px solid var(--line); }
+th { color: var(--muted); font-weight: 600; }
+.doc-table thead th { position: sticky; top: 0; z-index: 2; background: var(--soft); box-shadow: 0 1px 0 var(--line); border-bottom: 0; }
+@media (max-width: 900px) { .doc-table { max-height: 80vh; overflow: auto; } }
+.note { border-left: 3px solid var(--accent); background: var(--soft); padding: 8px 14px; border-radius: 0 6px 6px 0; margin: 12px 0; }
+.rec { color: var(--ok); font-weight: 600; }
+.step { font-weight: 700; }
+.toc-btn { position: fixed; left: 10px; top: 50%; transform: translateY(-50%); z-index: 50; width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); background: var(--soft); color: var(--muted); cursor: pointer; font-size: 15px; }
+.toc-btn:hover { color: var(--fg); }
+.toc-panel { position: fixed; left: 52px; top: 50%; transform: translateY(-50%); z-index: 51; width: min(300px, calc(100vw - 80px)); max-height: 80vh; overflow: auto; background: var(--soft); border: 1px solid var(--line); border-radius: 8px; padding: 10px 8px; font-size: 14px; box-shadow: 0 12px 40px #0006; }
+.toc-btn[hidden], .toc-panel[hidden] { display: none; }
+
+/* timeline diagram */
+.tl { width: 100%; height: auto; display: block; margin: 8px 0 4px; }
+.tl .lane { fill: var(--soft); stroke: var(--line); }
+.tl .lbl { fill: var(--muted); font: 600 12px system-ui, "Segoe UI", sans-serif; }
+.tl .box { stroke-width: 1; }
+.tl .b-ui { fill: #3b82f633; stroke: #3b82f6; }
+.tl .b-ex { fill: #f59e0b33; stroke: #f59e0b; }
+.tl .b-br { fill: #ec489933; stroke: #ec4899; }
+.tl .b-q { fill: #22c55e33; stroke: #22c55e; }
+.tl .t { fill: var(--fg); font: 12px system-ui, "Segoe UI", sans-serif; }
+.tl .tm { fill: var(--muted); font: 11px system-ui, "Segoe UI", sans-serif; }
+.tl .arr { stroke: var(--muted); stroke-width: 1.3; fill: none; marker-end: url(#tlArrow); }
+.tl .axis { stroke: var(--line); }
+figcaption { color: var(--muted); font-size: 13.5px; margin-top: 6px; }
+
+/* ---------- demos ---------- */
+.qs-demo { margin: 0; }
+.qs-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 18px; background: var(--soft); border: 1px solid var(--line); border-bottom: 0; border-radius: 12px 12px 0 0; }
+.qs-head strong { font-size: 15px; }
+.qs-head .qs-count { display: block; color: var(--muted); font-size: 12px; margin-top: 1px; }
+.qs-ctrl { display: flex; gap: 8px; }
+.qs-ctrl button { cursor: pointer; border: 1px solid var(--line); border-radius: 8px; padding: 7px 12px; background: var(--bg); color: var(--fg); font: 600 12.5px system-ui, "Segoe UI", sans-serif; }
+.qs-ctrl button.primary { background: #6366f1; border-color: #6366f1; color: #fff; }
+.qs-ctrl button:hover { filter: brightness(1.12); }
+.qs-ctrl button:disabled { opacity: .45; cursor: default; filter: none; }
+.qs-stage { position: relative; height: 520px; overflow: hidden; border: 1px solid #283146; background: radial-gradient(ellipse 65% 90% at 73% 78%, #2c4c8f 0%, #1a3368 35%, transparent 70%), linear-gradient(135deg, #151c35 3%, #112345 54%, #11192d 100%); font-family: system-ui, "Segoe UI", sans-serif; color: #e8eaf0; }
+.qs-cap { display: flex; gap: 18px; align-items: flex-start; border: 1px solid var(--line); border-top: 0; border-radius: 0 0 12px 12px; padding: 12px 18px 14px; background: var(--soft); }
+.qs-now { flex: 1.1; font-size: 14.5px; min-height: 48px; }
+.qs-now b { color: var(--accent); }
+.qs-steps { flex: 1; margin: 0; padding: 0; list-style: none; font-size: 13px; }
+.qs-steps li { margin: 0; }
+.qs-steps button { all: unset; display: block; cursor: pointer; padding: 2px 8px; border-left: 2px solid var(--line); color: var(--muted); }
+.qs-steps button:hover { color: var(--fg); }
+.qs-steps button.is-on { color: var(--accent); border-left-color: var(--accent); font-weight: 600; }
+
+/* mock windows */
+.qs-win { position: absolute; border-radius: 8px; overflow: hidden; border: 1px solid #ffffff22; box-shadow: 0 18px 50px #0008; background: #202124; transition: filter .2s, box-shadow .2s; filter: brightness(.72); }
+.qs-win.is-front { filter: none; box-shadow: 0 22px 60px #000a, 0 0 0 1px #9bb8ff55; }
+.qs-strip { display: flex; align-items: flex-end; gap: 2px; height: 34px; padding: 6px 8px 0; background: #2b2c30; }
+.qs-tab { flex: 0 1 150px; min-width: 22px; height: 28px; padding: 6px 10px; font-size: 11.5px; color: #c4c7ce; border-radius: 7px 7px 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qs-tab.is-active { background: #3c3d42; color: #fff; }
+.qs-tab.is-new { animation: qsFlash 1s ease-out; }
+.qs-tab.is-gone { animation: qsGone .5s ease-in forwards; }
+@keyframes qsFlash { 0% { background: #6366f1; } 100% { background: #3c3d42; } }
+@keyframes qsGone { to { opacity: 0; flex-basis: 0; padding: 0; min-width: 0; } }
+.qs-brname { margin-left: auto; align-self: center; font-size: 11px; font-weight: 700; color: #9aa0ac; padding: 0 4px 6px 10px; white-space: nowrap; }
+.qs-edge .qs-strip { background: #26313d; } .qs-edge .qs-tab.is-active { background: #344354; }
+.qs-addr { margin: 6px 10px; padding: 5px 12px; border-radius: 14px; background: #ffffff12; font-size: 11.5px; color: #b8bcc6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qs-page { padding: 8px 18px; }
+.qs-page h4 { margin: 4px 0 10px; font-size: 16px; color: #f2f3f6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qs-line { height: 8px; border-radius: 4px; background: #ffffff14; margin: 9px 0; }
+.qs-exp { background: #1c1c1c; } .qs-exp .qs-strip { background: #202020; } .qs-exp .qs-tab.is-active { background: #2c2c2c; }
+.qs-file { font-size: 12px; color: #c9ccd3; padding: 4px 18px; }
+.qs-file::before { content: "\25A0"; color: #e0b44a; margin-right: 8px; font-size: 10px; }
+.qs-code { background: #1e1e1e; }
+.qs-codebar { height: 30px; padding: 7px 12px; font-size: 11.5px; color: #c4c7ce; background: #2d2d2d; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qs-codeline { font: 12px/1.75 Consolas, "Cascadia Mono", monospace; padding: 0 16px; color: #9cdcfe; white-space: pre; }
+.qs-codeline .k { color: #c586c0; } .qs-codeline .f { color: #dcdcaa; } .qs-codeline .c { color: #6a9955; }
+
+/* taskbar */
+.qs-taskbar { position: absolute; left: 0; right: 0; bottom: 0; height: 44px; background: #0e1728ee; border-top: 1px solid #ffffff1e; display: flex; align-items: center; gap: 10px; padding: 0 18px; font-size: 12px; color: #dfe6f5; z-index: 20; }
+.qs-taskbar span { background: #ffffff0e; border: 1px solid #ffffff12; border-radius: 6px; padding: 4px 10px; }
+.qs-taskbar span.is-front { border-bottom: 2px solid #9bb8ff; }
+.qs-taskbar .qs-clock { margin-left: auto; background: none; border: 0; color: #c9d3e6; }
+
+/* palette: matches src/ui/styles.rs */
+.qs-pal { position: absolute; z-index: 30; left: 50%; top: 64px; width: 680px; transform: translateX(-50%); background: #1f2025; border: 1px solid #3a3c45; border-radius: 8px; padding: 10px 14px 6px; box-shadow: 0 30px 80px #000c; }
+.qs-search { display: flex; align-items: center; gap: 10px; height: 34px; font-size: 20px; color: #e8eaf0; }
+.qs-search svg { flex: none; }
+.qs-ph { color: #6c717e; }
+.qs-caret { display: inline-block; width: 2px; height: 22px; background: #6366f1; margin-left: 1px; vertical-align: -4px; animation: qsBlink 1s steps(1) infinite; }
+@keyframes qsBlink { 50% { opacity: 0; } }
+.qs-sep { height: 1px; background: #3a3c45; margin: 6px -14px 6px; }
+.qs-rows { height: 228px; overflow: hidden; }
+.qs-row { all: unset; box-sizing: border-box; position: relative; display: flex; align-items: center; gap: 10px; width: 100%; height: 30px; margin-bottom: 2px; padding: 0 8px 0 12px; border-radius: 6px; cursor: default; }
+.qs-row.is-sel { background: #34365c; }
+.qs-row.is-sel::before { content: ""; position: absolute; left: 0; top: 6px; bottom: 6px; width: 3px; border-radius: 2px; background: #6366f1; }
+.qs-row.is-tap { cursor: pointer; animation: qsPulse 1.4s ease-in-out infinite; }
+@keyframes qsPulse { 0%, 100% { box-shadow: 0 0 0 0 #a5b4fc00; } 50% { box-shadow: 0 0 0 2px #a5b4fc99; } }
+.qs-txt { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qs-t { font-size: 15px; color: #e8eaf0; }
+.qs-s { font-size: 12px; color: #9a9fad; margin-left: 10px; }
+.qs-txt mark { background: none; color: #a5b4fc; }
+.qs-badge { flex: none; font-size: 11px; padding: 3px 6px; border-radius: 4px; }
+.qs-empty { color: #9a9fad; font-size: 15px; padding: 8px 2px; }
+.qs-foot { display: flex; justify-content: space-between; gap: 12px; height: 24px; align-items: center; font-size: 12px; color: #6c717e; }
+.qs-foot .err { color: #f87171; }
+.qs-keycap { position: absolute; z-index: 40; left: 50%; bottom: 64px; transform: translateX(-50%); background: #0c1324f0; border: 1px solid #ffffff40; border-radius: 10px; padding: 8px 16px; font: 700 14px system-ui, "Segoe UI", sans-serif; color: #fff; opacity: 0; transition: opacity .2s; pointer-events: none; }
+.qs-keycap.is-on { opacity: 1; }
+.qs-note { position: absolute; z-index: 25; right: 18px; top: 14px; max-width: 300px; background: #0c1324e0; border: 1px solid #ffffff30; border-radius: 8px; padding: 7px 11px; font-size: 12px; color: #dce6fa; }
+.qs-note:empty { display: none; }
+@media print { .qs-stage { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }
+</style>
+</head>
+<body>
+<div class="doc-top"><button type="button" id="docTheme">Light mode</button></div>
+<div class="doc-layout">
+<nav class="doc-toc" aria-label="Contents">
+  <p>Contents</p>
+  <a href="#summary">1. Summary</a>
+  <a href="#behavior">2. What the user gets</a>
+  <a class="sub" href="#b-terminal">2.5 Windows Terminal tabs</a>
+  <a href="#demos">3. Demos</a>
+  <a class="sub" href="#demo-switch">3.1 Switch to a Chrome tab</a>
+  <a class="sub" href="#demo-two">3.2 Same page in two browsers</a>
+  <a class="sub" href="#demo-many">3.3 Forty tabs</a>
+  <a class="sub" href="#demo-closed">3.4 A tab closed meanwhile</a>
+  <a href="#design">4. How it works</a>
+  <a href="#spike">5. Step 0: test run</a>
+  <a href="#steps">6. Implementation steps</a>
+  <a href="#decisions">7. Decisions</a>
+  <a href="#risks">8. Risks</a>
+  <a href="#tests">9. Tests and acceptance</a>
+  <a href="#effort">10. Effort</a>
+</nav>
+<main>
+<h1>Browser tab search</h1>
+<p class="lede">Make QuickSwitch find and switch to tabs in Chrome, Edge, Brave, Firefox and other browsers, read through UI Automation (approach 1).</p>
+<p class="meta">Created 2026-11-11 · Status: implemented, shipped in 0.4.0 (2026-11-11). The same release also added type filters, web search and a Settings view (see README §2) · Target version: 0.4.0</p>
+
+<h2 id="summary">1. Summary</h2>
+<ul>
+  <li>Every open browser tab becomes a search result with the badge <strong>Browser tab</strong>. Typing searches tab titles and the browser name. <strong>Enter</strong> selects the tab and brings its window to the front.</li>
+  <li>Tabs are read with UI Automation, the same Windows accessibility API that already switches Explorer tabs. Nothing has to be installed in the browser.</li>
+  <li>With nothing typed, each browser window still shows as one row (its current tab), so 40 open tabs don't flood the list. All the other tabs appear as soon as you type.</li>
+  <li>Browser tabs are read on the existing background worker, after Explorer tabs. The popup still opens at once, and browser tabs join the list a moment later.</li>
+  <li>The browser only shows titles to UI Automation, not URLs, so URL search is out of scope.</li>
+  <li>Work starts with a test run (§5): a small diagnostic program that prints each browser's tab strip and tries switching. Its results decide the details of §6 and whether Firefox is in the first release.</li>
+</ul>
+
+<h2 id="behavior">2. What the user gets</h2>
+<h3 id="b-rows">2.1 Rows</h3>
+<div class="doc-table"><table>
+  <thead><tr><th>Part of the row</th><th>Content</th></tr></thead>
+  <tbody>
+    <tr><td>Title</td><td>The tab's title as shown on its tab, cleaned of state the browser adds for screen readers (e.g. “Audio playing”, “Memory usage – 1.2 GB”, “Pinned”).</td></tr>
+    <tr><td>Grey text</td><td>The browser's name: <code>Chrome</code>, <code>Edge</code>, <code>Brave</code>, <code>Firefox</code>, …, plus the profile name when the window title shows one (Edge does, e.g. <code>Edge · Work</code>).</td></tr>
+    <tr><td>Badge</td><td><strong>Browser tab</strong>, in a new pink colour (<code>#ec4899</code>) next to Window (blue), Explorer tab (amber) and Folder (green).</td></tr>
+  </tbody>
+</table></div>
+
+<h3 id="b-match">2.2 Matching and order</h3>
+<ul>
+  <li>Matched like windows today: every typed word must match the title or the browser name, in any order. <code>edge pull</code> finds the Edge copy of a pull-request page only.</li>
+  <li><strong>Nothing typed:</strong> each browser window stands as one row for its current tab, in window order, like Explorer windows today. The other tabs are searched but not listed. This works like remembered folders, which are also only listed once you type.</li>
+  <li><strong>Something typed:</strong> all tabs take part. Ties are broken as now: recent picks first, then window order, then tab-strip order.</li>
+</ul>
+
+<h3 id="b-switch">2.3 Switching</h3>
+<ul>
+  <li><strong>Enter</strong> or a click selects the tab in its window's tab strip, restores the window if it was minimized, and brings it to the front. The popup closes.</li>
+  <li>If the tab or window has gone, the footer says so (“The tab “…” is no longer open.”) and the row is removed. The popup stays open.</li>
+  <li>While switching, the footer shows “Switching tab…”, as it does for Explorer tabs.</li>
+</ul>
+
+<h3 id="b-scope">2.4 Not covered</h3>
+<ul>
+  <li>URLs (only the active tab's URL is visible, and only in its address bar).</li>
+  <li>Tabs inside a collapsed tab group, if the browser leaves them out of UI Automation (the test run will show). They come back once the group is expanded.</li>
+  <li>Windows on other virtual desktops (skipped today for all windows).</li>
+  <li>Electron apps (VS Code, Slack, Discord, Teams). They share Chrome's window class but are not browsers, and they stay normal window rows.</li>
+</ul>
+
+<h3 id="b-terminal">2.5 Windows Terminal tabs (added)</h3>
+<ul>
+  <li>Windows Terminal (<code>CASCADIA_HOSTING_WINDOW_CLASS</code>, <code>WindowsTerminal.exe</code>) is one more row in the §4.1 table with its own engine. Its tabs are read and switched by the same code as browser tabs.</li>
+  <li>Rows get the badge <strong>Terminal tab</strong> (teal, <code>#14b8a6</code>) and the grey text <code>Terminal</code>. Shell titles repeat a lot (“PowerShell”), so a repeated title adds its tab number: <code>Terminal · tab 3</code>.</li>
+  <li>The empty-query rule is the same: one row per Terminal window, the other tabs once you type. Old console windows (conhost) have no tabs and stay window rows.</li>
+  <li>Setting: <code>terminal_tabs = true</code> in <code>config.toml</code> (no tray item, since reading Terminal costs little).</li>
+</ul>
+
+<h2 id="demos">3. Demos</h2>
+<p>Each demo is a mock desktop with the real popup's colours and sizes (from <code>src/ui/styles.rs</code>). Use <strong>Show me</strong> to do the next step, <strong>Back</strong> and <strong>Start again</strong> to move around, or <strong>Play all</strong> to watch it through. Where a row pulses, you can click it instead. The step list on the right jumps to any step. Everything is simulated.</p>
+
+<h3 id="demo-switch">3.1 Switch to a Chrome tab</h3>
+<p>The main path: open, browser tabs arrive, type, Enter.</p>
+<figure class="doc-wide qs-demo" data-demo="switch"><div class="doc-wide-in"></div></figure>
+
+<h3 id="demo-two">3.2 Same page in two browsers</h3>
+<p>The grey text tells otherwise identical rows apart, and the browser name can be typed.</p>
+<figure class="doc-wide qs-demo" data-demo="two"><div class="doc-wide-in"></div></figure>
+
+<h3 id="demo-many">3.3 Forty tabs: nothing typed vs typed</h3>
+<p>The rule from §2.2: a short list until you type, then every tab is searchable.</p>
+<figure class="doc-wide qs-demo" data-demo="many"><div class="doc-wide-in"></div></figure>
+
+<h3 id="demo-closed">3.4 A tab closed meanwhile</h3>
+<p>The failure path from §2.3.</p>
+<figure class="doc-wide qs-demo" data-demo="closed"><div class="doc-wide-in"></div></figure>
+
+<h2 id="design">4. How it works</h2>
+<h3 id="d-detect">4.1 Which windows count as browsers</h3>
+<p>A window is a browser when both its class and its process are in a fixed table (new <code>src/search/browsers.rs</code>). The process check is what keeps Electron apps out.</p>
+<div class="doc-table"><table>
+  <thead><tr><th>Window class</th><th>Process (exe)</th><th>Shown as</th><th>Engine</th></tr></thead>
+  <tbody>
+    <tr><td><code>Chrome_WidgetWin_1</code></td><td><code>chrome</code></td><td>Chrome</td><td>Chromium</td></tr>
+    <tr><td><code>Chrome_WidgetWin_1</code></td><td><code>msedge</code></td><td>Edge</td><td>Chromium</td></tr>
+    <tr><td><code>Chrome_WidgetWin_1</code></td><td><code>brave</code></td><td>Brave</td><td>Chromium</td></tr>
+    <tr><td><code>Chrome_WidgetWin_1</code></td><td><code>vivaldi</code></td><td>Vivaldi</td><td>Chromium</td></tr>
+    <tr><td><code>Chrome_WidgetWin_1</code></td><td><code>opera</code></td><td>Opera</td><td>Chromium</td></tr>
+    <tr><td><code>MozillaWindowClass</code></td><td><code>firefox</code></td><td>Firefox</td><td>Gecko</td></tr>
+    <tr><td><code>MozillaWindowClass</code></td><td><code>librewolf</code>, <code>waterfox</code>, <code>zen</code></td><td>LibreWolf, Waterfox, Zen</td><td>Gecko</td></tr>
+  </tbody>
+</table></div>
+<p>The Engine column picks how the tab strip is read and which name suffixes are removed. Adding a browser later is one table row plus a test.</p>
+
+<h3 id="d-read">4.2 Reading tabs</h3>
+<ul>
+  <li>For each browser window, find its tab-strip element and read its <code>TabItem</code> children. A single UI Automation cache request fetches each tab's name and selected state together, in one round trip.</li>
+  <li><strong>Never walk into the page.</strong> Web content sits under a <code>Document</code> element, and searching it is slow and makes the browser build accessibility data for every page. The search skips <code>Document</code> subtrees, or follows the exact path to the tab strip that the test run finds.</li>
+  <li>Each tab yields plain data: window handle, cleaned title, raw name, rank among same-named tabs (<code>nth</code>), selected flag and a numeric key. The worker keeps the tab elements from its latest scan under those keys. As with Explorer, no COM object leaves the worker thread.</li>
+  <li>A window whose tab strip can't be found (unknown layout, browser update, timeout) keeps its plain window row, and the log notes it once. Nothing breaks.</li>
+</ul>
+
+<h3 id="d-select">4.3 Switching</h3>
+<ol>
+  <li>Restore the window if it is minimized (existing code path).</li>
+  <li>Find the tab again: first the element kept under the row's key (if its name still matches), then by raw name plus <code>nth</code>, as for Explorer tabs.</li>
+  <li>Select it with <code>SelectionItemPattern.Select</code>. If that doesn't take, fall back to <code>LegacyIAccessiblePattern.DoDefaultAction</code>, then <code>InvokePattern</code>. The test run shows which one each browser actually uses. QuickSwitch never sends simulated mouse clicks.</li>
+  <li>Confirm the tab now reports itself as selected, or the window title starts with its title. If a same-named candidate turns out to be wrong, try the next one, as the Explorer code does.</li>
+  <li>Bring the window to the front with the existing <code>win::activate</code>.</li>
+</ol>
+
+<h3 id="d-timing">4.4 Threads and timing</h3>
+<p>Everything runs on the existing STA worker thread (<code>quickswitch-shell</code>), which already owns UI Automation. The UI thread never waits on it.</p>
+<svg class="tl" viewBox="0 0 760 230" role="img" aria-label="Timeline: the popup shows windows at once; the worker reads Explorer tabs, then each browser window, and checks for switch requests between windows.">
+  <defs><marker id="tlArrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#9aa5b4"/></marker></defs>
+  <rect class="lane" x="0" y="20" width="760" height="64" rx="6"/>
+  <rect class="lane" x="0" y="112" width="760" height="64" rx="6"/>
+  <text class="lbl" x="10" y="38">UI thread</text>
+  <text class="lbl" x="10" y="130">Worker (STA)</text>
+  <rect class="box b-ui" x="90" y="46" width="150" height="28" rx="5"/><text class="t" x="98" y="64">Popup shows windows</text>
+  <rect class="box b-ui" x="290" y="46" width="150" height="28" rx="5"/><text class="t" x="298" y="64">Merge Explorer tabs</text>
+  <rect class="box b-ui" x="560" y="46" width="180" height="28" rx="5"/><text class="t" x="568" y="64">Merge browser tabs</text>
+  <rect class="box b-ex" x="110" y="138" width="170" height="28" rx="5"/><text class="t" x="118" y="156">Explorer scan (today)</text>
+  <rect class="box b-br" x="300" y="138" width="120" height="28" rx="5"/><text class="t" x="308" y="156">Chrome window</text>
+  <rect class="box b-q" x="424" y="138" width="14" height="28" rx="3"/>
+  <rect class="box b-br" x="442" y="138" width="110" height="28" rx="5"/><text class="t" x="450" y="156">Edge window</text>
+  <path class="arr" d="M280,138 C285,110 300,100 330,76"/>
+  <path class="arr" d="M552,138 C560,110 580,100 600,76"/>
+  <path class="arr" d="M240,60 C250,100 140,110 140,136"/>
+  <line class="axis" x1="90" y1="198" x2="740" y2="198"/>
+  <text class="tm" x="90" y="214">0 ms (hotkey)</text>
+  <text class="tm" x="270" y="214">~30 ms</text>
+  <text class="tm" x="530" y="214">~100–300 ms warm · up to ~1 s on first read</text>
+  <text class="tm" x="404" y="192">Select requests checked here</text>
+</svg>
+<figcaption>Times are expectations to confirm in the test run (§5). The green slot between windows is where a waiting switch request, such as Enter on an Explorer tab, jumps ahead of the rest of the browser scan.</figcaption>
+<ul>
+  <li><strong>Separate answers:</strong> Explorer tabs are sent as soon as they are read (<code>AppCommand::Tabs</code>, unchanged). Browser tabs follow in a new <code>AppCommand::BrowserTabs</code>, so a slow browser never holds up Explorer tabs.</li>
+  <li><strong>Switch requests come first:</strong> between browser windows the worker checks its queue, and a <code>Select</code> request runs before the rest of the scan. Pressing Enter early never waits for a long scan.</li>
+  <li><strong>Old scans dropped:</strong> answers carry the popup's generation number, and a late answer for an old opening is ignored (existing rule).</li>
+  <li><strong>Busy text:</strong> the footer shows “Reading Explorer tabs…”, then “Reading browser tabs…”, then nothing.</li>
+</ul>
+
+<h2 id="spike">5. Step 0: test run</h2>
+<p>A diagnostic example, <code>examples/browser_tabs_spike.rs</code>, built like the existing <code>examples/uia_spike.rs</code>. It is read-only unless told to switch.</p>
+<pre><code>cargo run --example browser_tabs_spike                  # list browser windows, tab strips and tabs
+cargo run --example browser_tabs_spike -- --tree 2      # dump the UIA path from window 2 down to its tab strip
+cargo run --example browser_tabs_spike -- --select 2 5  # try each switch method on tab 5 of window 2
+cargo run --example browser_tabs_spike -- --repeat 5    # time 5 scans in a row (cold, then warm)</code></pre>
+<p>For each window it prints: class, process, title, the element path to the tab strip, each tab's raw name, cleaned name, selected flag, runtime ID and supported patterns, and the scan time.</p>
+<h3 id="spike-run">5.1 What the operator runs</h3>
+<p><span class="step">Step 1.</span> Open Chrome and Edge (and Firefox and Brave if installed), each with 20+ tabs, including one pinned tab, a tab playing audio, two tabs with the same title, and a collapsed tab group. Use Edge's vertical tabs in one window.</p>
+<p><span class="step">Step 2.</span> Note each browser's memory in Task Manager, then run the plain listing twice (cold, then warm).</p>
+<p><span class="step">Step 3.</span> Run <code>--select</code> on a background tab in each browser, once with the window minimized.</p>
+<p><span class="step">Step 4.</span> Note memory again and paste the output back. For Chrome and Edge, also note what <code>chrome://accessibility</code> or <code>edge://accessibility</code> shows as enabled after the run.</p>
+<h3 id="spike-gate">5.2 Pass criteria</h3>
+<div class="doc-table"><table>
+  <thead><tr><th>Check</th><th>Target</th><th>If it fails</th></tr></thead>
+  <tbody>
+    <tr><td>Electron apps (VS Code, Slack, Teams) are listed as “not a browser”</td><td>Always</td><td>Add their process to the exclusion (fix the table in <code>browsers.rs</code>).</td></tr>
+    <tr><td>All tabs listed (except collapsed groups) with clean titles</td><td>Chrome, Edge</td><td>Stop and rethink. Approach 1 doesn't hold.</td></tr>
+    <tr><td>Switching selects the right tab, including a minimized window</td><td>Chrome, Edge</td><td>Try the fallback patterns (§4.3). If none works, stop.</td></tr>
+    <tr><td>Warm scan of a 50-tab window</td><td>&lt; 250 ms</td><td>Add the per-window cache from §7 D5.</td></tr>
+    <tr><td>First (cold) scan</td><td>&lt; 1.5 s</td><td>Same as above, and read browsers only after the first type-ahead.</td></tr>
+    <tr><td>Browser memory after the scan</td><td>No lasting growth above ~5%</td><td>Narrow the tree walk. If it still grows, make the feature opt-in (§7 D4).</td></tr>
+    <tr><td>Firefox lists and switches tabs</td><td>Nice to have</td><td>Ship Chromium browsers first and handle Firefox in a follow-up (§7 D3).</td></tr>
+  </tbody>
+</table></div>
+
+<h2 id="steps">6. Implementation steps</h2>
+<p>Each step builds and passes <code>cargo fmt --check</code>, <code>cargo clippy --all-targets -- -D warnings</code> and <code>cargo test</code> before the next one.</p>
+
+<h3 id="s1">6.1 Step 1: browser table and name cleanup</h3>
+<ul>
+  <li>New <code>src/search/browsers.rs</code>: the table from §4.1, <code>fn browser_of(&amp;WindowInfo) -&gt; Option&lt;&amp;'static BrowserSpec&gt;</code>, and <code>fn clean_tab_name(engine, raw) -&gt; String</code> holding the suffix list the test run found.</li>
+  <li>Tests in <code>tests/browsers.rs</code>: Chrome, Edge and Firefox are recognised, VS Code and Slack (also <code>Chrome_WidgetWin_1</code>) are not, and each real suffix from the test run is removed.</li>
+</ul>
+
+<h3 id="s2">6.2 Step 2: search model</h3>
+<ul>
+  <li><code>src/search/mod.rs</code>: add a <code>BrowserTabInfo</code> record, <code>Target::BrowserTab { window_hwnd, key, name, nth }</code>, <code>Kind::BrowserTab</code> (label “Browser tab”), and <code>browser_tab_item()</code> with <code>MatchOn::Text</code>.</li>
+  <li><code>Snapshot</code> gets a third range. The order becomes: listed open items (windows, Explorer tabs, each browser window's current tab), then the other browser tabs (searched, not listed for an empty query), then remembered folders. <code>merge_browser_tabs(generation, tabs)</code> replaces each browser window row the same way <code>merge_tabs</code> does. <code>remove_window</code> also drops that window's browser tabs.</li>
+  <li>Recent key: <code>web:&lt;browser&gt;|&lt;hash of lowercase title&gt;</code>, a fixed FNV-1a hash rather than Rust's standard hasher (whose output may change between Rust versions), so page titles are not written to <code>config.toml</code> (§7 D6).</li>
+  <li>Tests: merging, the empty-query rule, a stale generation being ignored, and closed-window removal.</li>
+</ul>
+
+<h3 id="s3">6.3 Step 3: worker split</h3>
+<ul>
+  <li>Move the shared UI Automation setup (<code>Uia</code>, timeouts, <code>select_element</code>) out of <code>explorer_tabs.rs</code> into <code>src/search/uia.rs</code>. Move the request loop into <code>src/search/worker.rs</code>. Explorer-specific code stays in <code>explorer_tabs.rs</code>. Behaviour is unchanged.</li>
+  <li>New requests: <code>Request::ScanBrowsers { generation, windows }</code> and <code>Request::SelectBrowserTab { … }</code>. Ordering in the loop: Explorer scan, then pending selects, then browser windows one at a time, checking for selects between them (§4.4).</li>
+</ul>
+
+<h3 id="s4">6.4 Step 4: read and switch browser tabs</h3>
+<ul>
+  <li>New <code>src/search/browser_tabs.rs</code>: <code>scan_window()</code> and <code>select()</code>, following §4.2 and §4.3 and the paths and patterns the test run found for each engine.</li>
+  <li>Each window gets its own time budget (UIA transaction timeout plus a wall-clock cap), so one hung browser can't stall the rest.</li>
+</ul>
+
+<h3 id="s5">6.5 Step 5: app wiring</h3>
+<ul>
+  <li><code>src/command.rs</code>: <code>AppCommand::BrowserTabs</code> and <code>AppCommand::BrowserTabSelected</code>.</li>
+  <li><code>src/app.rs</code>: <code>open()</code> requests a browser scan when the snapshot has browser windows. <code>handle()</code> merges the answer. <code>activate_item()</code> handles <code>Target::BrowserTab</code> (restore if minimized, request select, show “Switching tab…”, and on failure show the error and drop the row).</li>
+</ul>
+
+<h3 id="s6">6.6 Step 6: look and settings</h3>
+<ul>
+  <li><code>src/ui/styles.rs</code>: <code>BADGE_BROWSER = #ec4899</code>. In <code>src/ui/palette.rs</code>, add the badge colour and change the placeholder to “Search windows, tabs, or type ~/folder”.</li>
+  <li><code>src/config.rs</code>: <code>browser_tabs = true</code> (serde default, so existing config files keep working).</li>
+  <li><code>src/os/tray.rs</code>: a <em>Search browser tabs</em> checkbox under <em>Start with Windows</em> that turns the setting on or off at once.</li>
+</ul>
+
+<h3 id="s7">6.7 Step 7: docs and release</h3>
+<ul>
+  <li><code>README.md</code> §2 and §2.1, and <code>packaging/README.txt</code>: what is searched, the empty-query rule, what isn't covered, and the tray checkbox.</li>
+  <li>Bump the version to 0.4.0 in <code>Cargo.toml</code> and the installer script. Move this plan to <code>docs/plans/implemented/</code> once it ships.</li>
+  <li>Demo video: the portfolio repo's demo (<code>~/Projects/personalportfoliosite/demos</code>) can gain a browser-tab scene based on §3.1. That is a separate change made there, not in this repo.</li>
+</ul>
+
+<h2 id="decisions">7. Decisions</h2>
+<div class="doc-table"><table>
+  <thead><tr><th>#</th><th>Question</th><th>Options</th><th>Recommendation</th></tr></thead>
+  <tbody>
+    <tr><td>D1</td><td>What to list with nothing typed</td><td>(a) one row per browser window, its current tab · (b) every tab</td><td class="rec">(a). It keeps the list short and matches how remembered folders work.</td></tr>
+    <tr><td>D2</td><td>Order of a window's tabs</td><td>(a) strip order · (b) last used</td><td class="rec">(a). The browser doesn't expose last-used order. Recent picks already rise to the top.</td></tr>
+    <tr><td>D3</td><td>Firefox in 0.4.0</td><td>(a) yes · (b) only if the test run passes · (c) later</td><td class="rec">(b).</td></tr>
+    <tr><td>D4</td><td>On by default</td><td>(a) on, tray checkbox to turn off · (b) off, opt in</td><td class="rec">(a), unless the test run shows lasting browser memory growth. Then (b).</td></tr>
+    <tr><td>D5</td><td>Cache tabs between openings</td><td>(a) no, read fresh each time · (b) show last tabs at once and refresh</td><td class="rec">(a) to start. Add (b) only if warm scans miss the target.</td></tr>
+    <tr><td>D6</td><td>Page titles in <code>config.toml</code></td><td>(a) store titles in recent keys like windows · (b) store a hash</td><td class="rec">(b). Tab titles can be private (mail subjects, private windows), and a hash still drives recency.</td></tr>
+  </tbody>
+</table></div>
+
+<h2 id="risks">8. Risks</h2>
+<div class="doc-table"><table>
+  <thead><tr><th>Risk</th><th>Effect</th><th>Mitigation</th></tr></thead>
+  <tbody>
+    <tr><td>Browser updates change the tab strip's tree</td><td>Tabs stop appearing for that browser</td><td>Fall back to the window row and log it. The fixes are local to <code>browser_tabs.rs</code>. Rerun the test-run example after major browser releases.</td></tr>
+    <tr><td>Reading the tree turns on the browser's accessibility mode</td><td>More memory and CPU in the browser for the rest of its session</td><td>Measured in §5. Stay out of page content. Fall back to opt-in (D4).</td></tr>
+    <tr><td>Slow first read of a large window</td><td>Browser tabs arrive late on the first opening</td><td>Separate answers (§4.4), so windows and Explorer tabs are never delayed. Add the cache (D5) if needed.</td></tr>
+    <tr><td>Tab names include extra state text</td><td>Odd titles, missed matches</td><td>Suffix list per engine, with tests. The raw name is kept for finding the tab again.</td></tr>
+    <tr><td>Same-named tabs</td><td>Wrong tab selected</td><td>Kept element first, then <code>nth</code>, then confirm and try the next candidate (§4.3).</td></tr>
+    <tr><td>A switch request waits behind a scan</td><td>Enter feels slow</td><td>Selects run between windows (§4.4).</td></tr>
+    <tr><td>Windows refuses to bring the window forward</td><td>Tab switches but the window stays behind</td><td>Same <code>win::activate</code> path that already works for windows and Explorer tabs.</td></tr>
+  </tbody>
+</table></div>
+
+<h2 id="tests">9. Tests and acceptance</h2>
+<h3 id="t-auto">9.1 Automated</h3>
+<ul>
+  <li><code>tests/browsers.rs</code>: browser detection and name cleanup (step 1).</li>
+  <li>Snapshot tests: merging, empty-query rule, generation, window removal, recent-key hashing (step 2).</li>
+  <li>Matcher: a browser tab row matches on title and browser name (<code>edge pull</code>).</li>
+  <li>Config: an old <code>config.toml</code> without <code>browser_tabs</code> loads with the feature on.</li>
+</ul>
+<h3 id="t-manual">9.2 Operator checklist</h3>
+<p><span class="step">1.</span> Chrome and Edge with 30+ tabs: open the popup. Windows appear at once, and browser tabs follow within about a second.</p>
+<p><span class="step">2.</span> Nothing typed: one row per browser window. Type a word from a background tab and it appears. Press Enter and that tab is shown and its window is in front.</p>
+<p><span class="step">3.</span> Same page in Chrome and Edge: two rows told apart by the grey text. <code>edge …</code> leaves only the Edge row.</p>
+<p><span class="step">4.</span> Minimized browser window: Enter restores it on the right tab.</p>
+<p><span class="step">5.</span> Close a tab while the popup is open, then press Enter on it. The error shows in the footer and the row goes.</p>
+<p><span class="step">6.</span> VS Code, Slack or Teams open: they stay plain Window rows.</p>
+<p><span class="step">7.</span> Press Enter on an Explorer tab right after opening, while browsers are still being read. It switches without waiting.</p>
+<p><span class="step">8.</span> Untick <em>Search browser tabs</em> in the tray. Browser windows go back to plain window rows on the next opening.</p>
+<p><span class="step">9.</span> Firefox, if in scope (D3): steps 1, 2 and 4.</p>
+<p><span class="step">10.</span> Windows Terminal with three tabs, two of them PowerShell: typing <code>powershell</code> shows two rows told apart by <code>tab N</code>. Enter switches to the right one. A conhost <code>cmd</code> window stays a window row.</p>
+
+<h2 id="effort">10. Effort</h2>
+<p>Estimates assume an AI coding agent does the implementation. The operator's own time is listed separately.</p>
+<div class="doc-table"><table>
+  <thead><tr><th>Part</th><th>Agent</th><th>Operator</th></tr></thead>
+  <tbody>
+    <tr><td>Step 0: test-run example</td><td>~1 h</td><td>~30 min running it on 2–4 browsers and pasting output</td></tr>
+    <tr><td>Steps 1–5: model, worker, reading, switching, wiring</td><td>~4–6 h</td><td>none</td></tr>
+    <tr><td>Steps 6–7: look, settings, docs, version</td><td>~1 h</td><td>none</td></tr>
+    <tr><td>Checklist (§9.2) and fix rounds</td><td>~1–2 h of fixes</td><td>~45 min per round, usually 1–2 rounds</td></tr>
+    <tr><td><strong>Total</strong></td><td><strong>~7–10 h</strong></td><td><strong>~1.5–2.5 h</strong>, plus waiting between rounds</td></tr>
+  </tbody>
+</table></div>
+<p>The biggest unknown is the test run. If Chrome's tab strip needs an unusual tree walk, or the memory check fails, step 4 grows or the default changes (D4). Neither changes the rest of the plan.</p>
+</main>
+</div>
+
+<script>
+/* light mode toggle */
+(function () {
+  const root = document.documentElement;
+  const btn = document.getElementById('docTheme');
+  btn.addEventListener('click', () => {
+    const toLight = root.dataset.theme !== 'light';
+    if (toLight) root.dataset.theme = 'light'; else delete root.dataset.theme;
+    btn.textContent = toLight ? 'Dark mode' : 'Light mode';
+  });
+})();
+
+/* table of contents: mark the section being read */
+(function () {
+  const links = Array.from(document.querySelectorAll('nav.doc-toc a'));
+  if (!links.length || !('IntersectionObserver' in window)) return;
+  const byId = new Map(links.map((a) => [a.getAttribute('href').slice(1), a]));
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach((e) => {
+      if (!e.isIntersecting) return;
+      const a = byId.get(e.target.id); if (!a) return;
+      links.forEach((l) => l.classList.toggle('is-current', l === a));
+    });
+  }, { rootMargin: '-15% 0px -75% 0px' });
+  byId.forEach((_, id) => { const el = document.getElementById(id); if (el) io.observe(el); });
+})();
+
+/* table of contents: hidden while a wide block is on screen */
+(function () {
+  const toc = document.querySelector('nav.doc-toc');
+  const wide = document.querySelectorAll('.doc-wide');
+  if (!toc || !wide.length || !('IntersectionObserver' in window)) return;
+  const onScreen = new Set();
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach((e) => { if (e.isIntersecting) onScreen.add(e.target); else onScreen.delete(e.target); });
+    toc.classList.toggle('is-hidden', onScreen.size > 0);
+  });
+  wide.forEach((el) => io.observe(el));
+})();
+
+/* contents button while the side contents are hidden */
+(function () {
+  const nav = document.querySelector('nav.doc-toc');
+  if (!nav) return;
+  const narrow = matchMedia('(max-width: 900px)');
+  const btn = Object.assign(document.createElement('button'), { type: 'button', className: 'toc-btn', textContent: '☰', hidden: true });
+  btn.setAttribute('aria-label', 'Contents'); btn.setAttribute('aria-expanded', 'false');
+  const panel = Object.assign(document.createElement('div'), { className: 'toc-panel', hidden: true });
+  document.body.append(btn, panel);
+  const close = () => { panel.hidden = true; btn.setAttribute('aria-expanded', 'false'); };
+  const open = () => {
+    panel.replaceChildren(...[...nav.querySelectorAll('a[href^="#"]')].map((a) => a.cloneNode(true)));
+    panel.hidden = false; btn.setAttribute('aria-expanded', 'true');
+  };
+  const sync = () => { btn.hidden = !(nav.classList.contains('is-hidden') && !narrow.matches); if (btn.hidden) close(); };
+  btn.addEventListener('click', () => (panel.hidden ? open() : close()));
+  panel.addEventListener('click', (e) => { if (e.target.closest('a')) close(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !panel.hidden) { close(); btn.focus(); } });
+  document.addEventListener('click', (e) => { if (!panel.hidden && !panel.contains(e.target) && e.target !== btn) close(); });
+  new MutationObserver(sync).observe(nav, { attributes: true, attributeFilter: ['class'] });
+  narrow.addEventListener('change', sync);
+  sync();
+})();
+
+/* ---------------- demos ---------------- */
+(function () {
+  const BADGE = {
+    window: ['Window', '#3b82f6'],
+    explorer: ['Explorer tab', '#f59e0b'],
+    folder: ['Folder', '#22c55e'],
+    browser: ['Browser tab', '#ec4899'],
+  };
+  const HINT = '↑↓ navigate   Enter select   Esc close';
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  /* Highlight the first occurrence of each query word, like the real matcher. */
+  function hl(text, query) {
+    const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+    const lower = text.toLowerCase();
+    const marks = new Array(text.length).fill(false);
+    words.forEach((w) => { const i = lower.indexOf(w); if (i >= 0) for (let k = i; k < i + w.length; k++) marks[k] = true; });
+    let out = '', on = false;
+    for (let i = 0; i < text.length; i++) {
+      if (marks[i] !== on) { out += marks[i] ? '<mark>' : '</mark>'; on = marks[i]; }
+      out += esc(text[i]);
+    }
+    return on ? out + '</mark>' : out;
+  }
+
+  const W = (t, s) => ({ t, s, k: 'window' });
+  const E = (t, s) => ({ t, s, k: 'explorer' });
+  const B = (t, s) => ({ t, s, k: 'browser' });
+
+  /* ----- shared sample desktop ----- */
+  function windows(chromeTabs) {
+    return {
+      code: { type: 'code', title: 'app.rs — quickswitch — Visual Studio Code', task: 'VS Code', x: 30, y: 22, w: 600, h: 330 },
+      exp: { type: 'explorer', task: 'File Explorer', tabs: ['Projects', 'Downloads'], paths: ['~/Projects', '~/Downloads'], x: 560, y: 34, w: 500, h: 300 },
+      chrome: { type: 'browser', name: 'Chrome', task: 'Chrome', tabs: chromeTabs, x: 250, y: 74, w: 660, h: 340 },
+      edge: { type: 'browser', name: 'Edge', task: 'Edge', cls: 'qs-edge', tabs: [
+        { t: 'Pull requests · quickswitch', u: 'git.example.com/quickswitch/pulls' },
+        { t: 'Expense report – Team site', u: 'intranet.example.com/expenses/2026-11' },
+        { t: 'Flight options – Travel', u: 'travel.example.com/search?to=LIS' },
+      ], x: 80, y: 112, w: 600, h: 300 },
+    };
+  }
+  const CHROME4 = [
+    { t: 'Inbox (3) – Mail', u: 'mail.example.com/inbox' },
+    { t: 'Pull requests · quickswitch', u: 'git.example.com/quickswitch/pulls' },
+    { t: 'IUIAutomationElement – Win32 docs', u: 'docs.example.com/win32/uia/element' },
+    { t: 'Calendar – Week of Nov 9', u: 'calendar.example.com/week' },
+  ];
+  const CHROME40 = (function () {
+    const named = [
+      'Rust docs – std::vec::Vec', 'News – Front page', 'egui docs – ScrollArea', 'Weather – Today',
+      'UIA docs – TabItem control type', 'Recipe – Lentil soup', 'Win32 docs – SetForegroundWindow',
+      'Inbox (3) – Mail', 'Cargo docs – Features', 'Maps – Lisbon', 'windows-rs docs – IUIAutomation',
+      'Calendar – Week of Nov 9', 'Tokio docs – select!', 'Music – Focus mix',
+    ];
+    const out = named.map((t) => ({ t, u: 'example.com/' + t.split(' ')[0].toLowerCase() }));
+    for (let i = out.length; i < 40; i++) out.push({ t: 'Article ' + (i - 13) + ' – Reading list', u: 'read.example.com/' + i });
+    return out;
+  })();
+  const EMPTY_ROWS = (chromeTitle, edgeTitle) => [
+    W('app.rs — quickswitch — Visual Studio Code', 'Code'),
+    B(chromeTitle, 'Chrome'),
+    E('Projects', '~/Projects'),
+    E('Downloads', '~/Downloads'),
+    B(edgeTitle, 'Edge · Work'),
+  ];
+
+  /* ----- demo definitions ----- */
+  const DEMOS = {
+    switch: {
+      title: 'Demo 1 · Switch to a Chrome tab',
+      wins: windows(CHROME4),
+      start: { order: ['edge', 'exp', 'chrome', 'code'], active: { chrome: 2, edge: 0, exp: 0 } },
+      steps: [
+        { cap: 'You are working in the editor. The mail you want is open in a Chrome tab behind it.', pal: null },
+        { cap: 'The shortcut opens the popup at once with the open windows, as today. Tabs are read in the background.', keys: 'Ctrl + Win + K',
+          pal: { query: '', busy: 'Reading Explorer tabs…', rows: [
+            W('app.rs — quickswitch — Visual Studio Code', 'Code'),
+            W('IUIAutomationElement – Win32 docs - Google Chrome', 'chrome'),
+            W('Projects', 'File Explorer'),
+            W('Pull requests · quickswitch and 2 more pages - Work - Microsoft Edge', 'msedge'),
+          ] } },
+        { cap: 'Explorer tabs arrive first, exactly as today. The footer now says browser tabs are being read.',
+          pal: { busy: 'Reading browser tabs…', rows: [
+            W('app.rs — quickswitch — Visual Studio Code', 'Code'),
+            W('IUIAutomationElement – Win32 docs - Google Chrome', 'chrome'),
+            E('Projects', '~/Projects'), E('Downloads', '~/Downloads'),
+            W('Pull requests · quickswitch and 2 more pages - Work - Microsoft Edge', 'msedge'),
+          ] } },
+        { cap: 'Browser tabs arrive. With nothing typed, each browser window is one row for the tab it is showing, so the list stays short.',
+          pal: { busy: '', rows: EMPTY_ROWS('IUIAutomationElement – Win32 docs', 'Pull requests · quickswitch') } },
+        { cap: 'Typing searches every tab in every browser window. Click the row or press Enter.', tapRow: 0,
+          pal: { query: 'inbox', rows: [B('Inbox (3) – Mail', 'Chrome')] } },
+        { cap: 'QuickSwitch selects the tab in Chrome’s tab strip and brings the window to the front. The popup closes.', keys: 'Enter',
+          pal: null, order: ['edge', 'exp', 'code', 'chrome'], active: { chrome: 0 } },
+      ],
+    },
+    two: {
+      title: 'Demo 2 · Same page in two browsers',
+      wins: windows(CHROME4),
+      start: { order: ['exp', 'chrome', 'edge', 'code'], active: { chrome: 2, edge: 1, exp: 0 } },
+      steps: [
+        { cap: 'The pull requests page is open in both Chrome and Edge.', pal: null },
+        { cap: 'Open the popup.', keys: 'Ctrl + Win + K',
+          pal: { query: '', busy: '', rows: EMPTY_ROWS('IUIAutomationElement – Win32 docs', 'Expense report – Team site') } },
+        { cap: 'Both copies match. The grey text names the browser (and the Edge profile), so the rows can be told apart.',
+          pal: { query: 'pull req', sel: 0, rows: [B('Pull requests · quickswitch', 'Chrome'), B('Pull requests · quickswitch', 'Edge · Work')] } },
+        { cap: 'Typing the browser name also works: “edge pull” leaves only the Edge row.', tapRow: 0,
+          pal: { query: 'edge pull', sel: 0, rows: [{ t: 'Pull requests · quickswitch', s: 'Edge · Work', k: 'browser' }] } },
+        { cap: 'Edge comes to the front on the pull requests tab.', keys: 'Enter', pal: null, order: ['exp', 'chrome', 'code', 'edge'], active: { edge: 0 } },
+      ],
+    },
+    many: {
+      title: 'Demo 3 · Forty tabs: nothing typed vs typed',
+      wins: windows(CHROME40),
+      start: { order: ['edge', 'exp', 'code', 'chrome'], active: { chrome: 3, edge: 1, exp: 0 } },
+      steps: [
+        { cap: 'Chrome has 40 tabs open. With nothing typed, the list still has one row per window: 5 results, not 44.',
+          pal: { query: '', busy: '', rows: EMPTY_ROWS('Weather – Today', 'Expense report – Team site') } },
+        { cap: 'Type and every tab takes part. “docs” finds the documentation tabs among the 40.',
+          pal: { query: 'docs', sel: 0, rows: [
+            B('Rust docs – std::vec::Vec', 'Chrome'), B('egui docs – ScrollArea', 'Chrome'), B('UIA docs – TabItem control type', 'Chrome'),
+            B('Win32 docs – SetForegroundWindow', 'Chrome'), B('Cargo docs – Features', 'Chrome'), B('windows-rs docs – IUIAutomation', 'Chrome'),
+            B('Tokio docs – select!', 'Chrome'),
+          ] } },
+        { cap: 'Every word must match, in any order, as for windows today.', tapRow: 0,
+          pal: { query: 'docs uia', sel: 0, rows: [B('UIA docs – TabItem control type', 'Chrome')] } },
+        { cap: 'Chrome shows that tab.', keys: 'Enter', pal: null, active: { chrome: 4 } },
+      ],
+    },
+    closed: {
+      title: 'Demo 4 · A tab closed meanwhile',
+      wins: windows(CHROME4),
+      start: { order: ['exp', 'code', 'chrome', 'edge'], active: { chrome: 0, edge: 0, exp: 0 } },
+      steps: [
+        { cap: 'You search for the flight tab in Edge.',
+          pal: { query: 'flight', sel: 0, busy: '', rows: [B('Flight options – Travel', 'Edge · Work')] } },
+        { cap: 'Before you press Enter, the tab is closed in Edge (another window, a script, or you).', closed: { edge: [2] },
+          note: 'Edge: tab “Flight options” closed' },
+        { cap: 'QuickSwitch can’t find the tab. The footer says so and the row is removed. The popup stays open for another search.', keys: 'Enter',
+          note: '', pal: { rows: [], error: 'The tab “Flight options – Travel” is no longer open.' } },
+      ],
+    },
+  };
+
+  /* ----- state building: each step is a change on top of the one before ----- */
+  const PAL0 = { query: '', rows: [], sel: 0, busy: '', error: '' };
+  function buildStates(def) {
+    const states = [];
+    let prev = { order: def.start.order, active: def.start.active, closed: {}, pal: null, note: '' };
+    def.steps.forEach((s) => {
+      const st = {
+        order: s.order || prev.order,
+        active: Object.assign({}, prev.active, s.active || {}),
+        closed: Object.assign({}, prev.closed, s.closed || {}),
+        pal: s.pal === null ? null : s.pal ? Object.assign({}, prev.pal || PAL0, { sel: 0, error: '' }, s.pal) : prev.pal,
+        note: s.note !== undefined ? s.note : prev.note,
+        cap: s.cap, keys: s.keys || '', tapRow: s.tapRow,
+      };
+      states.push(st);
+      prev = st;
+    });
+    return states;
+  }
+
+  /* ----- rendering ----- */
+  function tabsHtml(win, id, st, prevSt) {
+    const gone = st.closed[id] || [];
+    const wasGone = (prevSt && prevSt.closed[id]) || [];
+    const labels = win.type === 'explorer' ? win.tabs : win.tabs.map((t) => t.t);
+    return labels.map((t, i) => {
+      if (wasGone.includes(i)) return '';
+      let cls = 'qs-tab';
+      if (st.active[id] === i) cls += ' is-active';
+      if (prevSt && prevSt.active[id] !== i && st.active[id] === i) cls += ' is-new';
+      if (gone.includes(i)) cls += ' is-gone';
+      return '<span class="' + cls + '" title="' + esc(t) + '">' + esc(t) + '</span>';
+    }).join('');
+  }
+  function winHtml(id, win, st, prevSt, z, front) {
+    const box = 'left:' + win.x + 'px;top:' + win.y + 'px;width:' + win.w + 'px;height:' + win.h + 'px;z-index:' + z;
+    const f = front ? ' is-front' : '';
+    if (win.type === 'code') {
+      return '<div class="qs-win qs-code' + f + '" style="' + box + '"><div class="qs-codebar">' + esc(win.title) + '</div>' +
+        '<div class="qs-codeline"><span class="c">// Browser tabs: plan §6.5</span></div>' +
+        '<div class="qs-codeline"><span class="k">fn</span> <span class="f">activate_item</span>(&amp;<span class="k">mut</span> self, item: SearchItem) {</div>' +
+        '<div class="qs-codeline">    <span class="k">match</span> &amp;item.target {</div>' +
+        '<div class="qs-codeline">        Target::Window { hwnd } =&gt; …,</div>' +
+        '<div class="qs-codeline">        Target::ExplorerTab { .. } =&gt; …,</div>' +
+        '<div class="qs-codeline">        Target::BrowserTab { .. } =&gt; …,</div>' +
+        '<div class="qs-codeline">    }</div><div class="qs-codeline">}</div></div>';
+    }
+    if (win.type === 'explorer') {
+      const a = st.active[id] || 0;
+      return '<div class="qs-win qs-exp' + f + '" style="' + box + '"><div class="qs-strip">' + tabsHtml(win, id, st, prevSt) + '</div>' +
+        '<div class="qs-addr">' + esc(win.paths[a]) + '</div>' +
+        ['quickswitch', 'personalportfoliosite', 'skills', 'notes'].map((n) => '<div class="qs-file">' + n + '</div>').join('') + '</div>';
+    }
+    const a = st.active[id] || 0;
+    const tab = win.tabs[a] || win.tabs[0];
+    return '<div class="qs-win ' + (win.cls || '') + f + '" style="' + box + '"><div class="qs-strip">' + tabsHtml(win, id, st, prevSt) +
+      '<span class="qs-brname">' + esc(win.name) + '</span></div>' +
+      '<div class="qs-addr">' + esc(tab.u) + '</div>' +
+      '<div class="qs-page"><h4>' + esc(tab.t) + '</h4><div class="qs-line" style="width:82%"></div><div class="qs-line" style="width:64%"></div>' +
+      '<div class="qs-line" style="width:74%"></div><div class="qs-line" style="width:40%"></div></div></div>';
+  }
+  const MAGNIFIER = '<svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.2" cy="8.2" r="5.6" fill="none" stroke="#9a9fad" stroke-width="1.8"/><line x1="12.2" y1="12.2" x2="16.6" y2="16.6" stroke="#9a9fad" stroke-width="1.8"/></svg>';
+  function palHtml(p, tapRow) {
+    const q = p.query ? esc(p.query) : '';
+    const ph = p.query ? '' : '<span class="qs-ph">Search windows, tabs, or type ~/folder</span>';
+    let rows;
+    if (!p.rows.length) rows = '<div class="qs-empty">' + (p.query ? 'No matches.' : 'No open windows found.') + '</div>';
+    else rows = p.rows.map((r, i) => {
+      const b = BADGE[r.k];
+      const cls = 'qs-row' + (i === p.sel ? ' is-sel' : '') + (i === tapRow ? ' is-tap' : '');
+      const tag = i === tapRow ? 'button type="button"' : 'div';
+      const end = i === tapRow ? 'button' : 'div';
+      return '<' + tag + ' class="' + cls + '" data-row="' + i + '"><span class="qs-txt"><span class="qs-t">' + hl(r.t, p.query) + '</span>' +
+        '<span class="qs-s">' + hl(r.s, p.query) + '</span></span>' +
+        '<span class="qs-badge" style="color:' + b[1] + ';background:' + b[1] + '2e">' + b[0] + '</span></' + end + '>';
+    }).join('');
+    const n = p.rows.length;
+    const left = p.error ? '<span class="err">' + esc(p.error) + '</span>' : '<span>' + HINT + '</span>';
+    const right = (p.busy ? esc(p.busy) + '   ' : '') + (n === 1 ? '1 result' : n + ' results');
+    return '<div class="qs-pal" role="dialog" aria-label="QuickSwitch popup (simulated)">' +
+      '<div class="qs-search">' + MAGNIFIER + '<span><span class="qs-q">' + q + '</span><span class="qs-caret"></span>' + ph + '</span></div>' +
+      '<div class="qs-sep"></div><div class="qs-rows">' + rows + '</div>' +
+      '<div class="qs-foot">' + left + '<span>' + right + '</span></div></div>';
+  }
+  function stageHtml(def, st, prevSt) {
+    const front = st.pal ? null : st.order[st.order.length - 1];
+    const frontWin = st.order[st.order.length - 1];
+    let html = st.order.map((id, z) => winHtml(id, def.wins[id], st, prevSt, z + 1, id === frontWin && !st.pal)).join('');
+    if (st.pal) html += palHtml(st.pal, st.tapRow);
+    html += '<div class="qs-note">' + esc(st.note || '') + '</div>';
+    html += '<div class="qs-keycap"></div>';
+    html += '<div class="qs-taskbar">' + ['code', 'exp', 'chrome', 'edge'].map((id) =>
+      '<span' + (id === front ? ' class="is-front"' : '') + '>' + esc(def.wins[id].task) + '</span>').join('') +
+      '<span class="qs-clock">10:35</span></div>';
+    return html;
+  }
+
+  /* ----- one demo ----- */
+  function mount(fig) {
+    const def = DEMOS[fig.dataset.demo];
+    if (!def) return;
+    const states = buildStates(def);
+    const inner = fig.querySelector('.doc-wide-in');
+    inner.innerHTML =
+      '<div class="qs-head"><div><strong>' + esc(def.title) + '</strong><span class="qs-count"></span></div>' +
+      '<div class="qs-ctrl"><button type="button" class="primary" data-act="next">Show me</button>' +
+      '<button type="button" data-act="back">Back</button><button type="button" data-act="play">Play all</button>' +
+      '<button type="button" data-act="reset">Start again</button></div></div>' +
+      '<div class="qs-stage"></div>' +
+      '<div class="qs-cap"><div class="qs-now" aria-live="polite"></div><ul class="qs-steps">' +
+      states.map((s, i) => '<li><button type="button" data-step="' + i + '">' + (i + 1) + '. ' + esc(s.cap) + '</button></li>').join('') +
+      '</ul></div>';
+    const stage = inner.querySelector('.qs-stage');
+    const now = inner.querySelector('.qs-now');
+    const count = inner.querySelector('.qs-count');
+    const btnNext = inner.querySelector('[data-act="next"]');
+    const btnBack = inner.querySelector('[data-act="back"]');
+    const btnPlay = inner.querySelector('[data-act="play"]');
+    const stepBtns = Array.from(inner.querySelectorAll('[data-step]'));
+    let cur = 0, token = 0, playing = false;
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+    function paint(i, prevSt) {
+      const st = states[i];
+      stage.innerHTML = stageHtml(def, st, prevSt);
+      now.innerHTML = '<b>Step ' + (i + 1) + '.</b> ' + esc(st.cap);
+      count.textContent = 'Step ' + (i + 1) + ' of ' + states.length + ' · simulated';
+      stepBtns.forEach((b, k) => b.classList.toggle('is-on', k === i));
+      btnBack.disabled = i === 0;
+      btnNext.disabled = i === states.length - 1;
+    }
+    function showKeys(keys) {
+      const cap = stage.querySelector('.qs-keycap');
+      if (!keys || !cap) return;
+      cap.textContent = keys;
+      cap.classList.add('is-on');
+      setTimeout(() => cap.classList.remove('is-on'), 1100);
+    }
+    /* Move to step i. Forward moves animate typing and key presses. */
+    async function go(i, animate) {
+      if (i < 0 || i >= states.length) return;
+      const my = ++token;
+      const from = states[cur], to = states[i];
+      if (animate && i === cur + 1 && from.pal && to.pal && to.pal.query !== from.pal.query && to.pal.query.startsWith(from.pal.query)) {
+        const q = stage.querySelector('.qs-q');
+        for (let k = from.pal.query.length + 1; k <= to.pal.query.length; k++) {
+          if (my !== token) return;
+          if (q) q.textContent = to.pal.query.slice(0, k);
+          const ph = stage.querySelector('.qs-ph'); if (ph) ph.remove();
+          await wait(85);
+        }
+      } else if (animate && i === cur + 1 && from.pal && to.pal && to.pal.query !== from.pal.query) {
+        const q = stage.querySelector('.qs-q');
+        if (q) q.textContent = to.pal.query;
+        await wait(200);
+      }
+      if (my !== token) return;
+      cur = i;
+      paint(i, animate ? from : null);
+      if (animate) showKeys(to.keys);
+    }
+    async function play() {
+      if (playing) { playing = false; btnPlay.textContent = 'Play all'; return; }
+      playing = true; btnPlay.textContent = 'Pause';
+      if (cur === states.length - 1) { await go(0, false); await wait(1200); }
+      while (playing && cur < states.length - 1) {
+        await go(cur + 1, true);
+        await wait(2300);
+      }
+      playing = false; btnPlay.textContent = 'Play all';
+    }
+    function stopPlay() { playing = false; btnPlay.textContent = 'Play all'; }
+
+    inner.querySelector('.qs-head').addEventListener('click', (e) => {
+      const act = e.target.closest('[data-act]');
+      if (!act) return;
+      const a = act.dataset.act;
+      if (a === 'next') { stopPlay(); go(cur + 1, true); }
+      else if (a === 'back') { stopPlay(); go(cur - 1, false); }
+      else if (a === 'reset') { stopPlay(); go(0, false); }
+      else if (a === 'play') play();
+    });
+    inner.querySelector('.qs-steps').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-step]');
+      if (!b) return;
+      stopPlay(); go(Number(b.dataset.step), false);
+    });
+    stage.addEventListener('click', (e) => {
+      const row = e.target.closest('.qs-row.is-tap');
+      if (!row) return;
+      stopPlay(); go(cur + 1, true);
+    });
+    paint(0, null);
+  }
+
+  document.querySelectorAll('.qs-demo').forEach(mount);
+})();
+</script>
+</body>
+</html>

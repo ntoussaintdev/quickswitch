@@ -21,6 +21,8 @@ pub enum PaletteAction {
     Completed,
     Hide,
     QueryChanged,
+    /// Ctrl+Enter: search the web for the typed text, whatever is selected.
+    WebSearch,
 }
 
 #[derive(Default)]
@@ -28,8 +30,11 @@ pub struct Palette {
     pub query: String,
     pub selected: usize,
     pub status: Option<Status>,
-    /// Shown while Explorer tabs are being read or switched.
+    /// Shown while Explorer or browser tabs are being read or switched.
     pub busy: Option<String>,
+    /// Shown instead of "No matches." when there are no results (set by the
+    /// app for type filters).
+    pub empty_hint: Option<String>,
     focus_pending: bool,
     scroll_pending: bool,
     /// Move the text cursor to the end on the next frame (after Tab completion).
@@ -64,7 +69,7 @@ impl Palette {
 
         // Keys are consumed before the TextEdit sees them, so arrows don't
         // move the text cursor and Enter/Esc don't drop focus.
-        let (up, down, page_up, page_down, enter, escape, tab, shift_tab) = ui.input_mut(|i| {
+        let (up, down, page_up, page_down, enter, escape, tab, shift_tab, ctrl_enter) = ui.input_mut(|i| {
             (
                 i.consume_key(Modifiers::NONE, Key::ArrowUp),
                 i.consume_key(Modifiers::NONE, Key::ArrowDown),
@@ -74,6 +79,7 @@ impl Palette {
                 i.consume_key(Modifiers::NONE, Key::Escape),
                 i.consume_key(Modifiers::NONE, Key::Tab),
                 i.consume_key(Modifiers::SHIFT, Key::Tab),
+                i.consume_key(Modifiers::CTRL, Key::Enter),
             )
         });
         // In path mode Tab completes the selected folder instead of moving.
@@ -112,6 +118,9 @@ impl Palette {
         if enter && n > 0 {
             action = Some(PaletteAction::Activate(self.selected));
         }
+        if ctrl_enter && !path_mode && !self.query.trim().is_empty() {
+            action = Some(PaletteAction::WebSearch);
+        }
 
         let rect = ui.max_rect();
         ui.painter()
@@ -130,7 +139,7 @@ impl Palette {
             magnifier(ui, SEARCH_FONT, TEXT_WEAK);
             let edit = egui::TextEdit::singleline(&mut self.query)
                 .id_salt("quickswitch-search")
-                .hint_text(RichText::new("Search windows and Explorer tabs, or type ~/folder").color(TEXT_FAINT))
+                .hint_text(RichText::new("Search windows and tabs, or type ~/folder").color(TEXT_FAINT))
                 .font(FontId::new(SEARCH_FONT, FontFamily::Proportional))
                 .frame(egui::Frame::NONE)
                 .desired_width(f32::INFINITY);
@@ -171,10 +180,10 @@ impl Palette {
                 ui.spacing_mut().item_spacing.y = 2.0;
                 if n == 0 {
                     ui.add_space(8.0);
-                    let msg = if self.query.trim().is_empty() {
-                        "No open windows found."
-                    } else {
-                        "No matches."
+                    let msg = match &self.empty_hint {
+                        Some(hint) => hint.as_str(),
+                        None if self.query.trim().is_empty() => "No open windows found.",
+                        None => "No matches.",
                     };
                     ui.label(RichText::new(msg).color(TEXT_WEAK));
                 }
@@ -209,7 +218,7 @@ impl Palette {
                         let hint = if path_mode {
                             "navigate   Tab complete   Enter open   Esc close"
                         } else {
-                            "navigate   Enter select   Esc close"
+                            "navigate   Enter select   Ctrl+Enter web   Esc close"
                         };
                         ui.label(RichText::new(hint).size(SMALL_FONT).color(TEXT_FAINT));
                     }
@@ -236,6 +245,9 @@ fn badge_color(kind: Kind) -> Color32 {
     match kind {
         Kind::Window => BADGE_WINDOW,
         Kind::ExplorerTab => BADGE_TAB,
+        Kind::BrowserTab => BADGE_BROWSER,
+        Kind::TerminalTab => BADGE_TERMINAL,
+        Kind::Web => BADGE_WEB,
         Kind::Folder => BADGE_FOLDER,
     }
 }

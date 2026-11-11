@@ -6,7 +6,7 @@
 
 use eframe::egui;
 
-use crate::search::TabInfo;
+use crate::search::{BrowserTabInfo, TabInfo};
 
 #[derive(Debug)]
 pub enum AppCommand {
@@ -14,10 +14,14 @@ pub enum AppCommand {
     Toggle,
     /// Tray click / menu / second launch: open (or refocus).
     Open,
-    /// Tray menu "Change shortcut…": open the shortcut settings view.
-    EditShortcut,
+    /// Tray menu "Settings…": open the settings view.
+    OpenSettings,
+    /// Tray menu "Web search in results" was clicked.
+    ToggleWebSearch,
     /// Tray menu "Start with Windows" was clicked.
     ToggleStartup,
+    /// Tray menu "Search browser tabs" was clicked.
+    ToggleBrowserTabs,
     /// Tray menu "Exit".
     Exit,
     /// Shell worker finished listing Explorer tabs.
@@ -26,6 +30,15 @@ pub enum AppCommand {
     TabSelected {
         explorer_hwnd: isize,
         result: Result<(), String>,
+    },
+    /// Shell worker finished reading browser tabs.
+    BrowserTabs { generation: u64, tabs: Vec<BrowserTabInfo> },
+    /// Shell worker finished switching to a browser tab. `gone`: the tab or
+    /// window no longer exists.
+    BrowserTabSelected {
+        window_hwnd: isize,
+        result: Result<(), String>,
+        gone: bool,
     },
 }
 

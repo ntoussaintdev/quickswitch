@@ -5,6 +5,8 @@ Press Ctrl + Win + K, type, press Enter:
 
   - switch to any open window (minimized windows are restored)
   - switch to an individual File Explorer tab
+  - switch to a tab in Chrome, Edge, Brave, Vivaldi, Opera or Firefox
+  - switch to a Windows Terminal tab
   - open a folder by typing its path, e.g. ~/Documents or C:/dev/work
 
 QuickSwitch runs in the notification area (system tray, bottom right of the
@@ -14,12 +16,13 @@ taskbar; it may be under the ^ arrow) until you choose Exit.
 Searching
 ---------
 
-  Type                Filters open windows, Explorer tabs and folders you
-                      have used before. Every word you type must match, in
+  Type                Filters open windows, Explorer tabs, browser tabs and
+                      folders you have used before. Every word you type must match, in
                       any order. Matched letters are highlighted.
   Up / Down, PgUp / PgDn
                       Move through the results (Tab also moves).
   Enter or click      Switch to the window or tab, or open the folder.
+  Ctrl + Enter        Search the web for what you typed.
   Esc, click elsewhere
                       Hide the popup. QuickSwitch keeps running.
 
@@ -27,6 +30,34 @@ Windows are found by their title or app name. Explorer tabs are found by the
 folder they show: each tab row shows that folder's path, so typing any folder
 name along the path finds it ("peace plans" finds ~/Projects/Peace-of-mind/
 docs/plans). Your home folder is written as ~.
+
+Browser tabs are found by their title or the browser's name ("edge mail"
+finds the mail tab in Edge). With nothing typed, each browser window shows as
+one row for the tab it is showing; its other tabs appear as soon as you type.
+Web addresses are not searched, only titles.
+
+Windows Terminal tabs work the same way. Their titles come from the shell,
+so several tabs are often just "PowerShell"; those rows also show the tab
+number ("Terminal · tab 3"), which you can type too.
+
+Web search: what you type also gets a row "Search Google for ..." (or
+"Visit ..." when it is a web address like github.com/x). It comes last, or
+first when nothing else matches, so Enter still goes to your best match;
+Ctrl + Enter searches the web from any row. "web: ..." puts the web row
+first, and "gpt: ..." asks ChatGPT instead. Pick another search engine in
+the tray menu's Settings...; untick "Web search in results" to hide the row.
+
+To search one kind of result only, start with a filter word and a colon:
+
+  browser: mail       browser tabs only (also web:)
+  window: code        windows only
+  explorer: plans     Explorer tabs only
+  terminal: pwsh      Windows Terminal tabs only
+  tab: x              all kinds of tab
+  folder: x           folders (remembered ones and open Explorer tabs)
+
+A filter on its own ("browser:") lists everything of that kind. The first
+two or more letters are enough ("br:", "term:").
 
 QuickSwitch also remembers folders you opened with it or had open in
 Explorer, so you can find them again later even when no Explorer window shows
@@ -58,13 +89,22 @@ Tray icon
 ---------
 
   Left-click     Open search.
-  Right-click    Open search, Change shortcut..., Start with Windows
+  Right-click    Open search, Settings..., Start with Windows (checkbox),
+                 Search browser tabs (checkbox), Web search in results
                  (checkbox), Exit QuickSwitch.
 
-"Change shortcut..." lets you pick up to three modifier keys (Ctrl, Alt,
+Settings... has two tabs (Ctrl + Tab switches). Shortcut lets you pick up to three modifier keys (Ctrl, Alt,
 Shift, Win) and a key from dropdowns. Save switches to it right away. If
 Windows or another app already uses that combination, your old shortcut
 keeps working and QuickSwitch tells you to pick another.
+
+The Web search tab picks where web searches go: Google (default), Bing,
+DuckDuckGo, Brave Search, Ecosia, Startpage, Kagi, Yahoo, Perplexity,
+ChatGPT, Claude, or your own address with {} where the text goes.
+
+"Search browser tabs" is on unless you turn it off. To read tab titles,
+QuickSwitch uses Windows accessibility support, which makes the browser use a
+little more memory. Turn it off if you don't need browser tabs.
 
 "Start with Windows" is off unless you turn it on (here or in the installer).
 It always shows the real setting. If you use the portable version and move
@@ -81,14 +121,17 @@ QuickSwitch after editing it (tray menu > Exit, then start it again).
   hotkey = "Ctrl+Win+K"               main shortcut
   fallback_hotkey = "Ctrl+Alt+Space"  optional second shortcut
   max_results = 9                     rows in the popup (1-20)
+  browser_tabs = true                 list browser tabs
+  terminal_tabs = true                list Windows Terminal tabs
 
 A shortcut is modifiers (Ctrl, Alt, Shift, Win) joined with +, then one key
 (K, Space, F1, ...). If another app already uses the shortcut, QuickSwitch
 says so once and keeps running; open it from the tray icon and use
-"Change shortcut...", or set fallback_hotkey.
+Settings..., or set fallback_hotkey.
 
 QuickSwitch also stores the results you picked recently ("recent") and the
-folders it remembers ("folders") in this file. You can delete those lines to
+folders it remembers ("folders") in this file. Browser tab titles are not
+stored, only a code made from them. You can delete those lines to
 clear them.
 
 Problems are written to quickswitch.log in the same folder.
@@ -109,6 +152,7 @@ Good to know
     fakes keystrokes; if Windows refuses, the popup shows a message.
   - Windows of programs running as administrator may refuse to be switched
     to. Windows on other virtual desktops are not listed.
+  - Tabs inside a collapsed tab group may not be listed until you expand it.
   - QuickSwitch is not code-signed, so Windows SmartScreen may warn the first
     time you run it or its installer.
 
