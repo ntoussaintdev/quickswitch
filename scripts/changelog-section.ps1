@@ -28,7 +28,9 @@ $section = ($lines[$start..($end - 1)] -join "`n").Trim()
 if (-not $section) { throw "The '## [$Version]' section in CHANGELOG.md is empty." }
 
 if ($OutFile) {
-    New-Item -ItemType Directory -Force -Path (Split-Path $OutFile -Parent) | Out-Null
+    # A bare file name ("release-notes.md") has no folder to create.
+    $dir = Split-Path $OutFile -Parent
+    if ($dir) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
     Set-Content -LiteralPath $OutFile -Value $section -Encoding utf8NoBOM
 } else {
     $section
