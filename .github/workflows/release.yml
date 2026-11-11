@@ -25,6 +25,11 @@ jobs:
           $version = (Select-String -Path Cargo.toml -Pattern '^version\s*=\s*"([^"]+)"' | Select-Object -First 1).Matches[0].Groups[1].Value
           if ("v$version" -ne "${{ github.ref_name }}") { throw "Tag ${{ github.ref_name }} does not match Cargo.toml version $version" }
 
+      # Fails early if CHANGELOG.md has no section for this version.
+      - name: Extract release notes from CHANGELOG.md
+        shell: pwsh
+        run: ./scripts/changelog-section.ps1 -Version "${{ github.ref_name }}" -OutFile release-notes.md
+
       - name: Install Inno Setup
         run: choco install innosetup -y --no-progress
 
@@ -41,6 +46,8 @@ jobs:
 
       - uses: softprops/action-gh-release@v2
         with:
+          # The CHANGELOG.md section, followed by GitHub's generated "Full Changelog" compare link.
+          body_path: release-notes.md
           generate_release_notes: true
           files: |
             dist/QuickSwitch-*-setup.exe

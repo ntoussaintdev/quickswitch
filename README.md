@@ -14,7 +14,7 @@ This is the developer README. The packages ship [`packaging/README.txt`](packagi
 
 ## 1. Install
 
-**Download the latest release:** [Installer (QuickSwitch-setup.exe)](https://github.com/ntoussaintdev/quickswitch/releases/latest/download/QuickSwitch-setup.exe) · [Portable (QuickSwitch-portable.zip)](https://github.com/ntoussaintdev/quickswitch/releases/latest/download/QuickSwitch-portable.zip) · [All releases](https://github.com/ntoussaintdev/quickswitch/releases)
+**Download the latest release:** [Installer (QuickSwitch-setup.exe)](https://github.com/ntoussaintdev/quickswitch/releases/latest/download/QuickSwitch-setup.exe) · [Portable (QuickSwitch-portable.zip)](https://github.com/ntoussaintdev/quickswitch/releases/latest/download/QuickSwitch-portable.zip) · [All releases](https://github.com/ntoussaintdev/quickswitch/releases) · [What's new](CHANGELOG.md)
 
 Pick one:
 
@@ -141,14 +141,14 @@ The default renderer is glow (OpenGL). The `wgpu` feature switches to wgpu (Dire
 
 ### 5.1 Releases
 
-GitHub Actions builds every release. `CI` runs fmt, clippy and tests on each push to `main` and on pull requests. To publish a release, bump `version` in `Cargo.toml`, commit, then push a matching tag:
+GitHub Actions builds every release. `CI` runs fmt, clippy and tests on each push to `main` and on pull requests. To publish a release, bump `version` in `Cargo.toml`, add a `## [X.Y.Z] - YYYY-MM-DD` section to `CHANGELOG.md` (written for users), commit, then push a matching tag:
 
 ```powershell
 git tag v0.3.0
 git push origin v0.3.0
 ```
 
-The `Release` workflow runs `scripts/package.ps1` on Windows and attaches the installer and portable ZIP (versioned, plus unversioned copies for the stable download links above) to a GitHub Release.
+The `Release` workflow runs `scripts/package.ps1` on Windows and attaches the installer and portable ZIP (versioned, plus unversioned copies for the stable download links above) to a GitHub Release. The release notes are that version's `CHANGELOG.md` section (`scripts/changelog-section.ps1`); the workflow fails if the section is missing.
 
 ## 6. Code map
 
