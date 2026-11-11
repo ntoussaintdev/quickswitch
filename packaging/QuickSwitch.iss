@@ -5,10 +5,10 @@
 ; - Uninstall removes the app files and the app-owned HKCU Run value.
 ;
 ; Build with scripts\package.ps1, or directly:
-;   ISCC.exe /DAppVersion=0.1.0 /DSourceExe=..\target\release\QuickSwitch.exe packaging\QuickSwitch.iss
+;   ISCC.exe /DAppVersion=0.2.0 /DSourceExe=..\target\release\QuickSwitch.exe packaging\QuickSwitch.iss
 
 #ifndef AppVersion
-  #define AppVersion "0.1.0"
+  #define AppVersion "0.2.0"
 #endif
 #ifndef SourceExe
   #define SourceExe "..\target\release\QuickSwitch.exe"
@@ -55,7 +55,8 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 Source: "{#SourceExe}"; DestDir: "{app}"; DestName: "{#AppExe}"; Flags: ignoreversion
-Source: "..\README.md"; DestDir: "{app}"; Flags: ignoreversion isreadme
+; The user README (not the developer README.md).
+Source: "README.txt"; DestDir: "{app}"; Flags: ignoreversion isreadme
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExe}"; Comment: "Search and switch windows, Explorer tabs and folders (Ctrl+Win+K)"

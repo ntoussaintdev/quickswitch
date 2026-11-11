@@ -8,8 +8,9 @@ use std::path::Path;
 ///
 /// Uses `ShellExecuteW` with the path as its own argument, so there is no
 /// command-line string building (commas, spaces and quotes are safe).
-/// Whether Explorer opens a new window or a new tab follows the user's
-/// Explorer settings (see README, "Known limitations").
+/// Used only when no open Explorer tab already shows the folder (the app
+/// switches to that tab instead). Whether Explorer then opens a new window or
+/// a new tab follows the user's Explorer settings.
 #[cfg(windows)]
 pub fn open_folder(path: &Path) -> Result<(), String> {
     use windows::Win32::UI::Shell::ShellExecuteW;

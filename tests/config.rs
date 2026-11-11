@@ -87,3 +87,22 @@ fn startup_command_is_quoted_with_background_flag() {
         r#""C:\Users\Some User\AppData\Local\Programs\QuickSwitch\QuickSwitch.exe" --background"#
     );
 }
+
+#[test]
+fn remembered_folders_are_mru_and_deduplicated() {
+    let mut c = Config::default();
+    c.push_folder(Path::new(r"C:\a"));
+    c.push_folder(Path::new(r"C:\b"));
+    c.push_folder(Path::new(r"c:\A"));
+    assert_eq!(c.folders, vec![r"c:\A", r"C:\b"]);
+    // Folders seen open in Explorer are added once and keep known ones in place.
+    assert!(c.note_folders([Path::new(r"C:\new"), Path::new(r"C:\B")]));
+    assert_eq!(c.folders, vec![r"C:\new", r"c:\A", r"C:\b"]);
+    assert!(!c.note_folders([Path::new(r"C:\new")]));
+    c.forget_folder(Path::new(r"C:\NEW"));
+    assert_eq!(c.folders.len(), 2);
+    // Survives a save/load round trip.
+    let (back, warning) = Config::from_toml(&c.to_toml());
+    assert!(warning.is_none());
+    assert_eq!(back.folders, c.folders);
+}

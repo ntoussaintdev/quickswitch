@@ -1,6 +1,6 @@
 //! Messages into the app's command queue.
 //!
-//! Tray, hotkey, second-launch and UIA-worker callbacks run outside the egui
+//! Tray, hotkey, second-launch and shell-worker callbacks run outside the egui
 //! frame. They push one of these and call `egui::Context::request_repaint`,
 //! which wakes `App::logic` even while the popup is hidden.
 
@@ -18,9 +18,9 @@ pub enum AppCommand {
     ToggleStartup,
     /// Tray menu "Exit".
     Exit,
-    /// UIA worker finished scanning Explorer tabs.
+    /// Shell worker finished listing Explorer tabs.
     Tabs { generation: u64, tabs: Vec<TabInfo> },
-    /// UIA worker finished selecting a tab.
+    /// Shell worker finished switching to a tab.
     TabSelected {
         explorer_hwnd: isize,
         result: Result<(), String>,

@@ -9,6 +9,8 @@ use serde::{Deserialize, Serialize};
 
 pub const DEFAULT_HOTKEY: &str = "Ctrl+Win+K";
 pub const MAX_RECENT: usize = 50;
+/// Remembered folders (opened from QuickSwitch or seen open in Explorer).
+pub const MAX_FOLDERS: usize = 200;
 /// A file with this name next to QuickSwitch.exe turns on portable mode:
 /// settings and the log are kept beside the exe instead of in `%APPDATA%`.
 pub const PORTABLE_MARKER: &str = "QuickSwitch.portable";
@@ -31,6 +33,9 @@ pub struct Config {
     pub max_results: usize,
     /// Recently picked result keys, most recent first.
     pub recent: Vec<String>,
+    /// Folders opened from QuickSwitch or seen open in Explorer, most recent
+    /// first. Searchable even when no Explorer window shows them.
+    pub folders: Vec<String>,
 }
 
 impl Default for Config {
@@ -40,6 +45,7 @@ impl Default for Config {
             fallback_hotkey: None,
             max_results: 9,
             recent: Vec::new(),
+            folders: Vec::new(),
         }
     }
 }
@@ -59,6 +65,7 @@ impl Config {
             Ok(mut c) => {
                 c.max_results = c.max_results.clamp(1, 20);
                 c.recent.truncate(MAX_RECENT);
+                c.folders.truncate(MAX_FOLDERS);
                 (c, None)
             }
             Err(e) => (Config::default(), Some(format!("Ignoring invalid config: {e}"))),
@@ -93,5 +100,34 @@ impl Config {
         self.recent.retain(|k| k != key);
         self.recent.insert(0, key.to_string());
         self.recent.truncate(MAX_RECENT);
+    }
+
+    /// Move a folder to the front of the remembered folders (it was just used).
+    pub fn push_folder(&mut self, path: &Path) {
+        let p = path.to_string_lossy().into_owned();
+        self.folders.retain(|f| !f.eq_ignore_ascii_case(&p));
+        self.folders.insert(0, p);
+        self.folders.truncate(MAX_FOLDERS);
+    }
+
+    /// Remember folders seen open in Explorer. Already-known folders keep
+    /// their place. Returns whether anything changed.
+    pub fn note_folders<'a>(&mut self, paths: impl IntoIterator<Item = &'a Path>) -> bool {
+        let mut changed = false;
+        for path in paths {
+            let p = path.to_string_lossy();
+            if !self.folders.iter().any(|f| f.eq_ignore_ascii_case(&p)) {
+                self.folders.insert(0, p.into_owned());
+                changed = true;
+            }
+        }
+        self.folders.truncate(MAX_FOLDERS);
+        changed
+    }
+
+    /// Forget a folder (it no longer exists).
+    pub fn forget_folder(&mut self, path: &Path) {
+        let p = path.to_string_lossy();
+        self.folders.retain(|f| !f.eq_ignore_ascii_case(&p));
     }
 }

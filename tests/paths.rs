@@ -2,7 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
-use quickswitch::actions::paths::{PathCheck, check, looks_like_path, resolve};
+use quickswitch::actions::paths::{PathCheck, UNC_NOT_LISTED, check, completion, list_dirs, looks_like_path, resolve};
 
 fn home() -> PathBuf {
     PathBuf::from(r"C:\Users\alice")
@@ -118,4 +118,68 @@ fn check_reports_directories_files_and_missing() {
     assert!(matches!(check("~/a|b", home), Some(PathCheck::Invalid(_))));
 
     std::fs::remove_dir_all(&dir).unwrap();
+}
+
+fn split(input: &str) -> (PathBuf, String, String) {
+    let c = completion(input, &home()).expect("path-like").expect("valid");
+    let next = c.complete("Next");
+    (c.dir, c.partial, next)
+}
+
+#[test]
+fn completion_splits_folder_and_partial_name() {
+    let (dir, partial, next) = split("~/projec");
+    assert_eq!(dir, PathBuf::from(r"C:\Users\alice"));
+    assert_eq!(partial, "projec");
+    assert_eq!(next, "~/Next/");
+
+    let (dir, partial, next) = split("~/Projects/");
+    assert_eq!(dir, PathBuf::from(r"C:\Users\alice\Projects"));
+    assert_eq!(partial, "");
+    assert_eq!(next, "~/Projects/Next/");
+
+    let (dir, partial, _) = split("C:/dev/wo");
+    assert_eq!(dir, PathBuf::from(r"C:\dev"));
+    assert_eq!(partial, "wo");
+}
+
+#[test]
+fn completion_of_a_whole_folder_lists_it() {
+    assert_eq!(
+        split("~"),
+        (PathBuf::from(r"C:\Users\alice"), String::new(), "~/Next/".into())
+    );
+    assert_eq!(split("D:").0, PathBuf::from(r"D:\"));
+    assert_eq!(split("~/a/..").0, PathBuf::from(r"C:\Users\alice"));
+}
+
+#[test]
+fn completion_keeps_backslash_style() {
+    let (_, partial, next) = split(r"C:\dev\wo");
+    assert_eq!(partial, "wo");
+    assert_eq!(next, r"C:\dev\Next\");
+}
+
+#[test]
+fn completion_skips_network_paths_and_rejects_bad_input() {
+    assert_eq!(
+        completion("//server/share/x", &home()),
+        Some(Err(UNC_NOT_LISTED.into()))
+    );
+    assert!(completion("~bob/x", &home()).unwrap().is_err());
+    assert!(completion("~/a?b", &home()).unwrap().is_err());
+    assert_eq!(completion("projects", &home()), None);
+}
+
+#[test]
+fn list_dirs_returns_only_folders_sorted() {
+    let root = std::env::temp_dir().join(format!("qs-list-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(root.join("beta")).unwrap();
+    std::fs::create_dir_all(root.join("Alpha")).unwrap();
+    std::fs::write(root.join("file.txt"), "x").unwrap();
+    let names: Vec<String> = list_dirs(&root).unwrap().into_iter().map(|e| e.name).collect();
+    assert_eq!(names, vec!["Alpha", "beta"]);
+    assert!(list_dirs(&root.join("missing")).is_err());
+    let _ = std::fs::remove_dir_all(&root);
 }

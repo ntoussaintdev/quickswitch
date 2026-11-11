@@ -175,3 +175,114 @@ fn normalize_parts<'a>(parts: &[&'a str]) -> Vec<&'a str> {
     }
     out
 }
+
+/// Path input split for suggestions: list `dir`, keep names matching `partial`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Completion {
+    /// Existing-or-not folder whose subfolders are suggested.
+    pub dir: PathBuf,
+    /// Text after the last separator ("" right after a `/`).
+    pub partial: String,
+    /// Input up to and including the last separator, as typed. A suggestion
+    /// completes to `prefix + name + sep`.
+    pub prefix: String,
+    /// Separator style the user typed (`/` unless they only used `\`).
+    pub sep: char,
+}
+
+impl Completion {
+    /// Query text that Tab completes to for the subfolder `name`.
+    pub fn complete(&self, name: &str) -> String {
+        format!("{}{}{}", self.prefix, name, self.sep)
+    }
+}
+
+/// Split path-like input into a folder to list and a partial name.
+///
+/// `None` when the input is not path-like; `Some(Err)` when it is malformed.
+/// Network (UNC) input is never split: listing a slow server on every
+/// keystroke could stall typing.
+pub fn completion(input: &str, home: &Path) -> Option<Result<Completion, String>> {
+    let s = strip_quotes(input.trim());
+    if !looks_like_path(s) {
+        return None;
+    }
+    if is_unc(s) {
+        return Some(Err(UNC_NOT_LISTED.into()));
+    }
+    let sep = if s.contains('\\') && !s.contains('/') {
+        '\\'
+    } else {
+        '/'
+    };
+    // Input that names a folder as a whole: "~", ".", "C:", "..", "~/x/.."
+    let last = s.rsplit(['/', '\\']).next().unwrap_or(s);
+    let whole = s == "~" || s == "." || (s.len() == 2 && drive_prefix_len(s) == Some(2)) || last == "." || last == "..";
+    let (prefix, partial) = if whole {
+        (format!("{s}{sep}"), String::new())
+    } else {
+        match s.rfind(['/', '\\']) {
+            Some(i) => (s[..=i].to_string(), s[i + 1..].to_string()),
+            None => {
+                return Some(Err(match resolve_inner(s, home) {
+                    Err(e) => e,
+                    Ok(_) => "Not a recognised path".into(),
+                }));
+            }
+        }
+    };
+    if partial.contains(INVALID_CHARS) || partial.contains(':') {
+        return Some(Err(format!("Invalid character in “{partial}”")));
+    }
+    Some(resolve_inner(&prefix, home).map(|dir| Completion {
+        dir,
+        partial,
+        prefix,
+        sep,
+    }))
+}
+
+/// Marker error from [`completion`] for network paths.
+pub const UNC_NOT_LISTED: &str = "unc";
+
+/// A subfolder found while listing.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DirEntry {
+    pub name: String,
+    /// Hidden or system folder (shown only when its name is typed).
+    pub hidden: bool,
+}
+
+/// Subfolders of `dir`, sorted by name (case-insensitive). Capped so a huge
+/// folder can't stall the popup.
+pub fn list_dirs(dir: &Path) -> std::io::Result<Vec<DirEntry>> {
+    const MAX_ENTRIES: usize = 5_000;
+    let mut out = Vec::new();
+    for entry in std::fs::read_dir(dir)?.flatten().take(MAX_ENTRIES) {
+        let Ok(ft) = entry.file_type() else { continue };
+        let is_dir = ft.is_dir() || (ft.is_symlink() && entry.path().is_dir());
+        if !is_dir {
+            continue;
+        }
+        let hidden = entry.metadata().map(|m| is_hidden(&m)).unwrap_or(false);
+        out.push(DirEntry {
+            name: entry.file_name().to_string_lossy().into_owned(),
+            hidden,
+        });
+    }
+    out.sort_by_key(|e| e.name.to_lowercase());
+    Ok(out)
+}
+
+#[cfg(windows)]
+fn is_hidden(m: &std::fs::Metadata) -> bool {
+    use std::os::windows::fs::MetadataExt;
+    const HIDDEN: u32 = 0x2;
+    const SYSTEM: u32 = 0x4;
+    m.file_attributes() & (HIDDEN | SYSTEM) != 0
+}
+
+#[cfg(not(windows))]
+fn is_hidden(_m: &std::fs::Metadata) -> bool {
+    false
+}

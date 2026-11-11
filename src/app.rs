@@ -11,7 +11,8 @@
 //!   egui's `ViewportCommand::Focus` is implemented in winit with a simulated
 //!   Alt keypress, which the plan rules out (§8, focus stealing).
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::rc::Rc;
 
 use crossbeam_channel::Receiver;
 use eframe::egui::{self, ViewportCommand};
@@ -26,7 +27,7 @@ use crate::os::tray::Tray;
 use crate::os::{self, windows as win};
 use crate::search::explorer_tabs::{Request, TabWorker};
 use crate::search::matcher::Ranker;
-use crate::search::{SearchItem, Snapshot, Target, folder_item};
+use crate::search::{SearchItem, Shown, Snapshot, Target, display_path, folder_item};
 use crate::startup;
 use crate::ui::palette::{Palette, PaletteAction, Status};
 use crate::ui::styles;
@@ -56,7 +57,13 @@ pub struct QuickSwitchApp {
     palette: Palette,
     snapshot: Snapshot,
     /// Ranked results currently on screen.
-    shown: Vec<SearchItem>,
+    shown: Vec<Shown>,
+    /// The query is a folder path (suggestions instead of search).
+    path_mode: bool,
+    /// Last folder listed for suggestions (reused while only the partial name changes).
+    dir_cache: Option<(PathBuf, Rc<Vec<paths::DirEntry>>)>,
+    /// Remembered folders changed since the last save.
+    config_dirty: bool,
     generation: u64,
 
     startup: Startup,
@@ -150,6 +157,9 @@ impl QuickSwitchApp {
             palette: Palette::default(),
             snapshot: Snapshot::default(),
             shown: Vec::new(),
+            path_mode: false,
+            dir_cache: None,
+            config_dirty: false,
             generation: 0,
             startup: Startup::AwaitFirstPaint,
             visible: false,
@@ -174,14 +184,14 @@ impl QuickSwitchApp {
 
         self.generation += 1;
         self.snapshot = Snapshot::new(self.generation, win::enumerate());
+        self.snapshot.set_history(self.history_items());
+        self.dir_cache = None;
         self.palette.reset();
-        let explorers = self.snapshot.explorer_windows();
-        if !explorers.is_empty()
+        if !self.snapshot.explorer_windows().is_empty()
             && let Some(w) = &self.worker
         {
             w.request(Request::Scan {
                 generation: self.generation,
-                windows: explorers,
             });
             self.palette.busy = Some("Reading Explorer tabs…".into());
         }
@@ -207,6 +217,10 @@ impl QuickSwitchApp {
         // Results hold window handles; don't keep them around while hidden.
         self.shown.clear();
         self.snapshot = Snapshot::default();
+        self.dir_cache = None;
+        if self.config_dirty {
+            self.save_config();
+        }
     }
 
     fn exit(&mut self, ctx: &egui::Context) {
@@ -237,7 +251,8 @@ impl QuickSwitchApp {
         }
     }
 
-    fn save_config(&self) {
+    fn save_config(&mut self) {
+        self.config_dirty = false;
         if let Some(p) = &self.config_path
             && let Err(e) = self.config.save(p)
         {
@@ -245,46 +260,155 @@ impl QuickSwitchApp {
         }
     }
 
+    /// Remembered folders as search items.
+    fn history_items(&self) -> Vec<SearchItem> {
+        self.config
+            .folders
+            .iter()
+            .map(|f| folder_item(PathBuf::from(f), &self.home))
+            .collect()
+    }
+
     // ----- search -----------------------------------------------------------
 
     fn refresh_results(&mut self) {
         let query = self.palette.query.clone();
         self.palette.status = None;
-        if paths::looks_like_path(&query) {
-            self.shown = match paths::resolve(&query, &self.home) {
-                Some(Err(msg)) => {
-                    self.palette.status = Some(Status::Error(msg));
-                    Vec::new()
-                }
-                // Network paths are checked only on Enter: probing an
-                // unreachable server on every keystroke could stall the UI.
-                Some(Ok(p)) if p.to_string_lossy().starts_with("\\\\") => {
-                    let mut item = folder_item(p);
-                    item.subtitle = "Network folder · checked when opened".into();
-                    vec![item]
-                }
-                _ => match paths::check(&query, &self.home) {
-                    Some(paths::PathCheck::Directory(p)) => vec![folder_item(p)],
-                    Some(other) => {
-                        self.palette.status = other.message().map(Status::Error);
-                        Vec::new()
-                    }
-                    None => Vec::new(),
-                },
-            };
+        self.path_mode = paths::looks_like_path(&query);
+        if self.path_mode {
+            self.shown = self.folder_suggestions(&query);
             return;
         }
         let limit = self.config.max_results;
-        let order = self
-            .ranker
-            .rank(&self.snapshot.items, &query, &self.config.recent, limit);
-        self.shown = order.into_iter().map(|i| self.snapshot.items[i].clone()).collect();
+        // Remembered folders are searchable, but an empty query lists only
+        // what is open right now.
+        let pool = if query.trim().is_empty() {
+            self.snapshot.open_items()
+        } else {
+            &self.snapshot.items[..]
+        };
+        let hits = self.ranker.rank(pool, &query, &self.config.recent, limit);
+        self.shown = hits
+            .into_iter()
+            .map(|h| Shown {
+                item: pool[h.index].clone(),
+                title_hl: h.title_hl,
+                subtitle_hl: h.subtitle_hl,
+                completion: None,
+            })
+            .collect();
+    }
+
+    /// Folder input: the subfolders of the typed folder that match the last,
+    /// partly typed name, like a wildcard `ls`.
+    fn folder_suggestions(&mut self, query: &str) -> Vec<Shown> {
+        let completion = match paths::completion(query, &self.home) {
+            None => return Vec::new(),
+            Some(Err(e)) if e == paths::UNC_NOT_LISTED => {
+                // Network paths are not listed or checked while typing: an
+                // unreachable server could stall the popup.
+                return match paths::resolve(query, &self.home) {
+                    Some(Ok(p)) => {
+                        let mut item = self.folder_result(p);
+                        item.subtitle.push_str(" · checked when opened");
+                        vec![Shown::plain(item)]
+                    }
+                    Some(Err(msg)) => {
+                        self.palette.status = Some(Status::Error(msg));
+                        Vec::new()
+                    }
+                    None => Vec::new(),
+                };
+            }
+            Some(Err(msg)) => {
+                self.palette.status = Some(Status::Error(msg));
+                return Vec::new();
+            }
+            Some(Ok(c)) => c,
+        };
+        let entries = match self.list_dir(&completion.dir) {
+            Ok(e) => e,
+            Err(_) => {
+                self.palette.status = Some(Status::Error(format!(
+                    "Folder not found: {}",
+                    display_path(&completion.dir, &self.home)
+                )));
+                return Vec::new();
+            }
+        };
+
+        let limit = self.config.max_results;
+        let mut out = Vec::new();
+        if completion.partial.is_empty() {
+            // Right after a separator: the folder itself first.
+            out.push(Shown::plain(self.folder_result(completion.dir.clone())));
+        }
+        let partial_lower = completion.partial.to_lowercase();
+        let mut matches: Vec<(u32, usize, Vec<usize>)> = entries
+            .iter()
+            .enumerate()
+            .filter(|(_, e)| {
+                !e.hidden || (!partial_lower.is_empty() && e.name.to_lowercase().starts_with(&partial_lower))
+            })
+            .filter_map(|(i, e)| {
+                self.ranker
+                    .match_name(&e.name, &completion.partial)
+                    .map(|(score, hl)| (score, i, hl))
+            })
+            .collect();
+        matches.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.cmp(&b.1)));
+        for (_, i, hl) in matches.into_iter().take(limit.saturating_sub(out.len())) {
+            let name = &entries[i].name;
+            let item = self.folder_result(completion.dir.join(name));
+            // A tab's title is the folder's display name, which is normally the
+            // same as the folder name; only then do the highlights line up.
+            let title_hl = if item.title == *name { hl } else { Vec::new() };
+            out.push(Shown {
+                item,
+                title_hl,
+                subtitle_hl: Vec::new(),
+                completion: Some(completion.complete(name)),
+            });
+        }
+        if out.is_empty() {
+            self.palette.status = Some(Status::Error(format!(
+                "No folder matching “{}” in {}",
+                completion.partial,
+                display_path(&completion.dir, &self.home)
+            )));
+        }
+        out
+    }
+
+    /// Subfolders of `dir`, cached while the user types in the same folder.
+    fn list_dir(&mut self, dir: &Path) -> std::io::Result<Rc<Vec<paths::DirEntry>>> {
+        if let Some((cached, entries)) = &self.dir_cache
+            && cached == dir
+        {
+            return Ok(entries.clone());
+        }
+        let entries = Rc::new(paths::list_dirs(dir)?);
+        self.dir_cache = Some((dir.to_path_buf(), entries.clone()));
+        Ok(entries)
+    }
+
+    /// The row for a folder: its open Explorer tab if there is one (Enter
+    /// switches to it), otherwise a folder to open.
+    fn folder_result(&self, path: PathBuf) -> SearchItem {
+        match self.snapshot.tab_for(&path) {
+            Some(tab) => tab.clone(),
+            None => folder_item(path, &self.home),
+        }
     }
 
     fn activate(&mut self, ctx: &egui::Context, index: usize) {
-        let Some(item) = self.shown.get(index).cloned() else {
+        let Some(item) = self.shown.get(index).map(|s| s.item.clone()) else {
             return;
         };
+        self.activate_item(ctx, item);
+    }
+
+    fn activate_item(&mut self, ctx: &egui::Context, item: SearchItem) {
         match &item.target {
             Target::Window { hwnd } => match win::activate(*hwnd) {
                 Ok(()) => {
@@ -295,33 +419,63 @@ impl QuickSwitchApp {
             },
             Target::ExplorerTab {
                 explorer_hwnd,
-                token,
+                tab_hwnd,
                 name,
-                index,
+                nth,
+                ..
             } => {
-                if !win::is_window(*explorer_hwnd) {
-                    self.fail(*explorer_hwnd, "That Explorer window has closed.".into());
+                let explorer = *explorer_hwnd;
+                if !win::is_window(explorer) {
+                    self.fail(explorer, "That Explorer window has closed.".into());
                     return;
+                }
+                self.remember(&item);
+                // Already the shown tab: just bring its window forward.
+                if win::active_explorer_tab(explorer) == Some(*tab_hwnd) {
+                    match win::activate(explorer) {
+                        Ok(()) => self.hide(ctx),
+                        Err(e) => self.fail(explorer, e),
+                    }
+                    return;
+                }
+                // A minimized window has no tab strip to click: restore it first.
+                if win::is_minimized(explorer) {
+                    let _ = win::activate(explorer);
                 }
                 if let Some(w) = &self.worker {
                     w.request(Request::Select {
-                        explorer_hwnd: *explorer_hwnd,
-                        token: *token,
+                        explorer_hwnd: explorer,
+                        tab_hwnd: *tab_hwnd,
                         name: name.clone(),
-                        index: *index,
+                        nth: *nth,
                     });
-                    self.pending_tab = Some(*explorer_hwnd);
+                    self.pending_tab = Some(explorer);
                     self.palette.busy = Some("Switching tab…".into());
-                    self.remember(&item);
                 }
             }
-            Target::OpenFolder { path } => match actions::open_folder(path) {
-                Ok(()) => {
-                    self.remember(&item);
-                    self.hide(ctx);
+            Target::OpenFolder { path } => {
+                // Already open in a tab (the scan may have finished after the
+                // row was built): switch to it instead of opening another.
+                if let Some(tab) = self.snapshot.tab_for(path).cloned() {
+                    self.activate_item(ctx, tab);
+                    return;
                 }
-                Err(e) => self.palette.status = Some(Status::Error(e)),
-            },
+                match actions::open_folder(path) {
+                    Ok(()) => {
+                        self.remember(&item);
+                        self.hide(ctx);
+                    }
+                    Err(e) => {
+                        if !path.is_dir() {
+                            self.config.forget_folder(path);
+                            self.config_dirty = true;
+                            self.snapshot.remove_folder(path);
+                            self.refresh_results();
+                        }
+                        self.palette.status = Some(Status::Error(e));
+                    }
+                }
+            }
         }
     }
 
@@ -336,6 +490,9 @@ impl QuickSwitchApp {
 
     fn remember(&mut self, item: &SearchItem) {
         self.config.push_recent(&item.recent_key);
+        if let Some(folder) = item.folder() {
+            self.config.push_folder(folder);
+        }
         self.save_config();
     }
 
@@ -353,7 +510,10 @@ impl QuickSwitchApp {
             AppCommand::Exit => self.exit(ctx),
             AppCommand::Tabs { generation, tabs } => {
                 // Late answers (palette closed or reopened since) are ignored.
-                if self.visible && self.snapshot.merge_tabs(generation, &tabs) {
+                if self.visible && self.snapshot.merge_tabs(generation, &tabs, &self.home) {
+                    if self.config.note_folders(tabs.iter().filter_map(|t| t.path.as_deref())) {
+                        self.config_dirty = true;
+                    }
                     if self.pending_tab.is_none() {
                         self.palette.busy = None;
                     }
@@ -366,7 +526,14 @@ impl QuickSwitchApp {
                 }
                 self.pending_tab = None;
                 self.palette.busy = None;
-                match result.and_then(|()| win::activate(explorer_hwnd)) {
+                let bring_forward = |()| {
+                    if win::is_foreground(explorer_hwnd) {
+                        Ok(())
+                    } else {
+                        win::activate(explorer_hwnd)
+                    }
+                };
+                match result.and_then(bring_forward) {
                     Ok(()) => self.hide(ctx),
                     Err(e) => self.fail(explorer_hwnd, e),
                 }
@@ -431,9 +598,9 @@ impl eframe::App for QuickSwitchApp {
             _ => {}
         }
 
-        match self.palette.show(ui, &self.shown) {
+        match self.palette.show(ui, &self.shown, self.path_mode) {
             Some(PaletteAction::Hide) => self.hide(&ctx),
-            Some(PaletteAction::QueryChanged) => self.refresh_results(),
+            Some(PaletteAction::QueryChanged | PaletteAction::Completed) => self.refresh_results(),
             Some(PaletteAction::Activate(i)) => self.activate(&ctx, i),
             None => {}
         }

@@ -5,7 +5,7 @@ use eframe::egui::{
 };
 
 use super::styles::*;
-use crate::search::{Kind, SearchItem};
+use crate::search::{Kind, Shown};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Status {
@@ -17,6 +17,8 @@ pub enum Status {
 pub enum PaletteAction {
     /// Activate the result at this index of the shown list.
     Activate(usize),
+    /// Tab on a folder suggestion: the query was replaced by its completion.
+    Completed,
     Hide,
     QueryChanged,
 }
@@ -26,10 +28,12 @@ pub struct Palette {
     pub query: String,
     pub selected: usize,
     pub status: Option<Status>,
-    /// Shown while the UIA worker is still scanning Explorer tabs.
+    /// Shown while Explorer tabs are being read or switched.
     pub busy: Option<String>,
     focus_pending: bool,
     scroll_pending: bool,
+    /// Move the text cursor to the end on the next frame (after Tab completion).
+    cursor_to_end: bool,
 }
 
 impl Palette {
@@ -47,8 +51,9 @@ impl Palette {
         self.focus_pending = true;
     }
 
-    /// Draw the palette. `results` is the ranked list currently shown.
-    pub fn show(&mut self, ui: &mut egui::Ui, results: &[SearchItem]) -> Option<PaletteAction> {
+    /// Draw the palette. `results` is the ranked list currently shown;
+    /// `path_mode` is true while the query is a folder path.
+    pub fn show(&mut self, ui: &mut egui::Ui, results: &[Shown], path_mode: bool) -> Option<PaletteAction> {
         let mut action = None;
         let n = results.len();
         if n == 0 {
@@ -71,6 +76,18 @@ impl Palette {
                 i.consume_key(Modifiers::SHIFT, Key::Tab),
             )
         });
+        // In path mode Tab completes the selected folder instead of moving.
+        let complete = path_mode && tab;
+        let tab = tab && !path_mode;
+        if complete && let Some(text) = results.get(self.selected).and_then(|r| r.completion.clone()) {
+            self.query = text;
+            self.selected = 0;
+            self.scroll_pending = true;
+            self.cursor_to_end = true;
+            self.focus_pending = true;
+            // Keep drawing this frame; the app refreshes the results next.
+            action = Some(PaletteAction::Completed);
+        }
         if n > 0 {
             let before = self.selected;
             if up || shift_tab {
@@ -110,7 +127,7 @@ impl Palette {
 
         // Search field.
         ui.horizontal(|ui| {
-            ui.label(RichText::new("🔍").size(SEARCH_FONT - 2.0).color(TEXT_WEAK));
+            magnifier(ui, SEARCH_FONT, TEXT_WEAK);
             let edit = egui::TextEdit::singleline(&mut self.query)
                 .id_salt("quickswitch-search")
                 .hint_text(RichText::new("Search windows and Explorer tabs, or type ~/folder").color(TEXT_FAINT))
@@ -118,6 +135,15 @@ impl Palette {
                 .frame(egui::Frame::NONE)
                 .desired_width(f32::INFINITY);
             let response = ui.add(edit);
+            if self.cursor_to_end {
+                self.cursor_to_end = false;
+                if let Some(mut state) = egui::TextEdit::load_state(ui.ctx(), response.id) {
+                    let end = egui::text::CCursor::new(self.query.chars().count());
+                    state.cursor.set_char_range(Some(egui::text::CCursorRange::one(end)));
+                    state.store(ui.ctx(), response.id);
+                }
+                ui.ctx().request_repaint();
+            }
             if self.focus_pending || !response.has_focus() {
                 response.request_focus();
                 self.focus_pending = false;
@@ -178,11 +204,14 @@ impl Palette {
                         ui.label(RichText::new(msg).size(SMALL_FONT).color(TEXT_WEAK));
                     }
                     None => {
-                        ui.label(
-                            RichText::new("↑ ↓ navigate   Enter select   Esc close")
-                                .size(SMALL_FONT)
-                                .color(TEXT_FAINT),
-                        );
+                        ui.spacing_mut().item_spacing.x = 4.0;
+                        arrow_keys(ui, SMALL_FONT, TEXT_FAINT);
+                        let hint = if path_mode {
+                            "navigate   Tab complete   Enter open   Esc close"
+                        } else {
+                            "navigate   Enter select   Esc close"
+                        };
+                        ui.label(RichText::new(hint).size(SMALL_FONT).color(TEXT_FAINT));
                     }
                 }
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
@@ -207,12 +236,68 @@ fn badge_color(kind: Kind) -> Color32 {
     match kind {
         Kind::Window => BADGE_WINDOW,
         Kind::ExplorerTab => BADGE_TAB,
-        Kind::OpenFolder => BADGE_FOLDER,
+        Kind::Folder => BADGE_FOLDER,
+    }
+}
+
+/// Search icon drawn as vector shapes (a ring and a handle), so it needs no
+/// font glyph. `size` is the line height it sits in.
+fn magnifier(ui: &mut egui::Ui, size: f32, color: Color32) {
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(size, size), Sense::hover());
+    let painter = ui.painter();
+    let stroke = Stroke::new(1.8, color);
+    let r = size * 0.28;
+    let center = rect.center() - egui::vec2(size * 0.08, size * 0.08);
+    painter.circle_stroke(center, r, stroke);
+    let d = std::f32::consts::FRAC_1_SQRT_2;
+    let start = center + egui::vec2(r * d, r * d);
+    painter.line_segment([start, start + egui::vec2(size * 0.22, size * 0.22)], stroke);
+}
+
+/// Up and down arrow keys hint, drawn as two small arrows.
+fn arrow_keys(ui: &mut egui::Ui, size: f32, color: Color32) {
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(size * 1.3, size), Sense::hover());
+    let painter = ui.painter();
+    let stroke = Stroke::new(1.2, color);
+    let h = size * 0.7;
+    let head = size * 0.22;
+    for (x, up) in [(rect.left() + size * 0.3, true), (rect.left() + size * 0.95, false)] {
+        let top = egui::pos2(x, rect.center().y - h / 2.0);
+        let bottom = egui::pos2(x, rect.center().y + h / 2.0);
+        painter.line_segment([top, bottom], stroke);
+        let tip = if up { top } else { bottom };
+        let dy = if up { head } else { -head };
+        painter.line_segment([tip, tip + egui::vec2(-head, dy)], stroke);
+        painter.line_segment([tip, tip + egui::vec2(head, dy)], stroke);
+    }
+}
+
+/// Append `text` to `job`, drawing the chars at `highlight` (sorted char
+/// indices) in the highlight colour.
+fn append_highlighted(job: &mut LayoutJob, text: &str, highlight: &[usize], leading: f32, base: egui::TextFormat) {
+    let mut hl = base.clone();
+    hl.color = HIGHLIGHT;
+    let mut leading = leading;
+    let mut run = String::new();
+    let mut run_hl = false;
+    for (i, c) in text.chars().enumerate() {
+        let is_hl = highlight.binary_search(&i).is_ok();
+        if is_hl != run_hl && !run.is_empty() {
+            job.append(&run, leading, if run_hl { hl.clone() } else { base.clone() });
+            leading = 0.0;
+            run.clear();
+        }
+        run_hl = is_hl;
+        run.push(c);
+    }
+    if !run.is_empty() {
+        job.append(&run, leading, if run_hl { hl } else { base });
     }
 }
 
 /// One single-line row: title, dimmed context, and a kind badge on the right.
-fn result_row(ui: &mut egui::Ui, item: &SearchItem, selected: bool) -> egui::Response {
+fn result_row(ui: &mut egui::Ui, shown: &Shown, selected: bool) -> egui::Response {
+    let item = &shown.item;
     let width = ui.available_width();
     let (rect, response) = ui.allocate_exact_size(egui::vec2(width, ROW_HEIGHT), Sense::click());
     if !ui.is_rect_visible(rect) {
@@ -251,14 +336,18 @@ fn result_row(ui: &mut egui::Ui, item: &SearchItem, selected: bool) -> egui::Res
     let text_left = rect.left() + 12.0;
     let max_width = (badge_rect.left() - 10.0 - text_left).max(20.0);
     let mut job = LayoutJob::default();
-    job.append(
+    append_highlighted(
+        &mut job,
         &item.title,
+        &shown.title_hl,
         0.0,
         egui::TextFormat::simple(FontId::new(TITLE_FONT, FontFamily::Proportional), TEXT),
     );
     if !item.subtitle.is_empty() {
-        job.append(
+        append_highlighted(
+            &mut job,
             &item.subtitle,
+            &shown.subtitle_hl,
             10.0,
             egui::TextFormat::simple(FontId::new(SMALL_FONT, FontFamily::Proportional), TEXT_WEAK),
         );

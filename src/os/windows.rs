@@ -13,10 +13,11 @@ use windows::Win32::System::Threading::{
 };
 use windows::Win32::UI::HiDpi::{GetDpiForMonitor, MDT_EFFECTIVE_DPI};
 use windows::Win32::UI::WindowsAndMessaging::{
-    EnumWindows, GA_ROOTOWNER, GW_OWNER, GWL_EXSTYLE, GetAncestor, GetClassNameW, GetCursorPos, GetForegroundWindow,
-    GetLastActivePopup, GetWindow, GetWindowLongPtrW, GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId,
-    HWND_TOP, IsIconic, IsWindow, IsWindowVisible, SW_HIDE, SW_RESTORE, SW_SHOW, SWP_NOACTIVATE, SWP_NOZORDER,
-    SetForegroundWindow, SetWindowPos, ShowWindow, WS_EX_APPWINDOW, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
+    EnumChildWindows, EnumWindows, GA_ROOTOWNER, GW_CHILD, GW_HWNDNEXT, GW_OWNER, GWL_EXSTYLE, GetAncestor,
+    GetClassNameW, GetCursorPos, GetForegroundWindow, GetLastActivePopup, GetWindow, GetWindowLongPtrW,
+    GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId, HWND_TOP, IsIconic, IsWindow, IsWindowVisible,
+    SW_HIDE, SW_RESTORE, SW_SHOW, SWP_NOACTIVATE, SWP_NOZORDER, SetForegroundWindow, SetWindowPos, ShowWindow,
+    WS_EX_APPWINDOW, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
 };
 use windows::core::{BOOL, PWSTR};
 
@@ -242,4 +243,56 @@ pub fn round_corners(h: isize) {
             size_of::<DWM_WINDOW_CORNER_PREFERENCE>() as u32,
         );
     }
+}
+
+/// Class of the window that holds one Explorer tab's contents.
+const EXPLORER_TAB_CLASS: &str = "ShellTabWindowClass";
+
+/// An Explorer window's tab windows, front to back. The first is the tab
+/// currently shown (checked against UI Automation's selected tab).
+pub fn explorer_tabs_in_z_order(explorer: isize) -> Vec<isize> {
+    let mut out = Vec::new();
+    if !is_window(explorer) {
+        return out;
+    }
+    unsafe {
+        let mut child = GetWindow(hwnd(explorer), GW_CHILD).unwrap_or_default();
+        while !child.is_invalid() {
+            if class_name(child) == EXPLORER_TAB_CLASS {
+                out.push(child.0 as isize);
+            }
+            child = GetWindow(child, GW_HWNDNEXT).unwrap_or_default();
+        }
+    }
+    out
+}
+
+/// The tab window currently shown in an Explorer window.
+pub fn active_explorer_tab(explorer: isize) -> Option<isize> {
+    explorer_tabs_in_z_order(explorer).into_iter().next()
+}
+
+pub fn is_minimized(h: isize) -> bool {
+    is_window(h) && unsafe { IsIconic(hwnd(h)) }.as_bool()
+}
+
+unsafe extern "system" fn collect_class(h: HWND, lparam: LPARAM) -> BOOL {
+    let (class, out) = unsafe { &mut *(lparam.0 as *mut (&str, Vec<isize>)) };
+    if class_name(h) == *class {
+        out.push(h.0 as isize);
+    }
+    true.into()
+}
+
+/// All descendant windows of `parent` with this class name.
+pub fn descendants_of_class(parent: isize, class: &str) -> Vec<isize> {
+    let mut state: (&str, Vec<isize>) = (class, Vec::new());
+    unsafe {
+        let _ = EnumChildWindows(
+            Some(hwnd(parent)),
+            Some(collect_class),
+            LPARAM(&mut state as *mut _ as isize),
+        );
+    }
+    state.1
 }

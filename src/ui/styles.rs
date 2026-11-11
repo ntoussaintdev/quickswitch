@@ -10,6 +10,8 @@ pub const TEXT_FAINT: Color32 = Color32::from_rgb(0x6c, 0x71, 0x7e);
 pub const ACCENT: Color32 = Color32::from_rgb(0x63, 0x66, 0xf1);
 pub const ROW_SELECTED: Color32 = Color32::from_rgb(0x34, 0x36, 0x5c);
 pub const ROW_HOVER: Color32 = Color32::from_rgb(0x2a, 0x2c, 0x34);
+/// Matched characters in result rows.
+pub const HIGHLIGHT: Color32 = Color32::from_rgb(0xa5, 0xb4, 0xfc);
 pub const ERROR: Color32 = Color32::from_rgb(0xf8, 0x71, 0x71);
 pub const BADGE_WINDOW: Color32 = Color32::from_rgb(0x3b, 0x82, 0xf6);
 pub const BADGE_TAB: Color32 = Color32::from_rgb(0xf5, 0x9e, 0x0b);

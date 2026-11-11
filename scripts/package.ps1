@@ -5,7 +5,7 @@
 .DESCRIPTION
   1. cargo fmt --check, cargo clippy -D warnings, cargo test
   2. cargo build --release
-  3. dist\QuickSwitch-<version>-portable.zip   (exe + portable marker + README)
+  3. dist\QuickSwitch-<version>-portable.zip   (exe + portable marker + README.txt)
   4. dist\QuickSwitch-<version>-setup.exe      (Inno Setup, per-user, no admin)
 
   Inno Setup 6 is found on PATH, in %LOCALAPPDATA%\Programs\Inno Setup 6, or in
@@ -45,7 +45,8 @@ $stage = Join-Path $dist "QuickSwitch-$version-portable"
 if (Test-Path $stage) { Remove-Item -Recurse -Force $stage }
 New-Item -ItemType Directory -Force $stage | Out-Null
 Copy-Item $exe $stage
-Copy-Item README.md $stage
+# The user README (packaging\README.txt), not the developer README.md.
+Copy-Item packaging\README.txt $stage
 Set-Content -Path (Join-Path $stage 'QuickSwitch.portable') -Value @(
     'This file turns on portable mode: QuickSwitch keeps config.toml and its log in this folder.'
     'Delete it to use %APPDATA%\QuickSwitch instead.'
