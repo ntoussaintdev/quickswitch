@@ -183,3 +183,49 @@ fn list_dirs_returns_only_folders_sorted() {
     assert!(list_dirs(&root.join("missing")).is_err());
     let _ = std::fs::remove_dir_all(&root);
 }
+
+/// `%SystemRoot%` as Windows normalizes it, e.g. `C:\WINDOWS`.
+fn system_root() -> PathBuf {
+    ok(&std::env::var("SystemRoot").expect("SystemRoot is always set"))
+}
+
+#[test]
+fn leading_environment_variable_is_expanded() {
+    for s in ["%SystemRoot%", "%systemroot%", "%SYSTEMROOT%/", r"%SystemRoot%\"] {
+        assert!(looks_like_path(s), "{s:?} should be path-like");
+        assert_eq!(ok(s), system_root(), "{s:?}");
+    }
+    assert_eq!(ok("%SystemRoot%/System32/../Fonts"), system_root().join("Fonts"));
+}
+
+#[test]
+fn environment_variable_errors() {
+    assert_eq!(
+        err("%QUICKSWITCH_SURELY_UNSET_VAR%/x"),
+        "Unknown variable %QUICKSWITCH_SURELY_UNSET_VAR%"
+    );
+    // USERNAME is set, but is a name, not a folder.
+    assert_eq!(err("%USERNAME%"), "%USERNAME% isn't a folder path");
+}
+
+#[test]
+fn incomplete_or_embedded_percent_is_not_a_variable() {
+    for s in ["%appdata", "%", "%%", "%app data%", "%a%b", "50% off"] {
+        assert!(!looks_like_path(s), "{s:?} should not be path-like");
+    }
+    // Mid-path `%` is a literal folder-name character.
+    assert_eq!(ok("C:/x/%foo%"), PathBuf::from(r"C:\x\%foo%"));
+}
+
+#[test]
+fn completion_after_environment_variable_keeps_it_as_typed() {
+    let (dir, partial, next) = split("%SystemRoot%/fon");
+    assert_eq!(dir, system_root());
+    assert_eq!(partial, "fon");
+    assert_eq!(next, "%SystemRoot%/Next/");
+
+    let (dir, partial, next) = split("%systemroot%");
+    assert_eq!(dir, system_root());
+    assert_eq!(partial, "");
+    assert_eq!(next, "%systemroot%/Next/");
+}

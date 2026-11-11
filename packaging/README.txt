@@ -41,6 +41,7 @@ Start typing with one of these to browse folders instead of searching:
   ~  or  ~/docs            your user folder (C:\Users\<you>), and below it
   ./notes                  also relative to your user folder
   C:/dev/work  C:\dev  D:  a drive path (/ and \ both work)
+  %appdata%/quickswitch    a folder from an environment variable
   //server/share           a network folder
 
 As you type, the popup lists the matching subfolders, like a wildcard "ls":

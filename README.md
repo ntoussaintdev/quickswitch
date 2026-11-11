@@ -4,7 +4,7 @@ A small Spotlight-style launcher for Windows 11. Press **Ctrl + Win + K**, type,
 
 - switch to any open window (minimized windows are restored),
 - switch to an individual **File Explorer tab**,
-- open a folder from Linux-friendly input such as `~/Documents`, `C:/dev/work`, `./notes` or `//server/share`.
+- open a folder from Linux-friendly input such as `~/Documents`, `C:/dev/work`, `./notes`, `%APPDATA%/x` or `//server/share`.
 
 It runs in the notification area (system tray) until you choose **Exit**. Built with Rust and egui/eframe; one executable, no admin rights.
 
@@ -51,6 +51,7 @@ Input is treated as a folder path only when it starts with one of these:
 | `~`, `~/docs` | `%USERPROFILE%`, `%USERPROFILE%\docs` |
 | `./notes` | `%USERPROFILE%\notes` (relative paths are resolved from your home folder, never from the app's working directory) |
 | `C:/dev/work`, `C:\dev\work`, `D:` | that drive path (slashes normalized) |
+| `%APPDATA%/quickswitch`, `%localappdata%` | the folder an environment variable points to (only at the start; case doesn't matter) |
 | `//server/share/dir`, `\\server\share` | a UNC network path |
 
 While you type, the popup lists the subfolders of the folder before the last `/` that match the part after it, like a wildcard `ls`: `~/proj` lists `Projects`, `projects-old`, ... (exact name, then prefix, substring and fuzzy matches). Right after a `/` the folder itself comes first, then all its subfolders. Rows use the real capitalisation.

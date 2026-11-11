@@ -1,7 +1,8 @@
 //! Linux-friendly folder input (plan §5.2, step 11).
 //!
-//! Path-like input is input that starts with `~`, `./`, a drive prefix such as
-//! `C:/`, or a UNC prefix such as `//server/share`. Bare words are never paths.
+//! Path-like input is input that starts with `~`, `./`, an environment
+//! variable such as `%APPDATA%`, a drive prefix such as `C:/`, or a UNC prefix
+//! such as `//server/share`. Bare words are never paths.
 //!
 //! Decisions:
 //! - `~/x` expands to the Windows home folder (`%USERPROFILE%\x`).
@@ -9,6 +10,9 @@
 //!   current directory (which is unpredictable for a tray app).
 //! - `~otheruser` and WSL-style `/home/...` are not translated.
 //! - `//server/share` is a Windows UNC path, not a WSL path.
+//! - `%NAME%` is expanded only at the start of the input (case-insensitive, as
+//!   Windows does), and must expand to a drive or UNC path. Elsewhere `%` is a
+//!   legal folder-name character and is kept literally.
 
 use std::path::{Path, PathBuf};
 
@@ -47,6 +51,7 @@ pub fn looks_like_path(input: &str) -> bool {
         || s == "."
         || s.starts_with("./")
         || s.starts_with(".\\")
+        || env_prefix(s).is_some()
         || is_unc(s)
         || drive_prefix_len(s).is_some()
 }
@@ -64,6 +69,14 @@ pub fn resolve(input: &str, home: &Path) -> Option<Result<PathBuf, String>> {
 }
 
 fn resolve_inner(s: &str, home: &Path) -> Result<PathBuf, String> {
+    if let Some((name, rest)) = env_prefix(s) {
+        let value = std::env::var(name).map_err(|_| format!("Unknown variable %{name}%"))?;
+        let value = value.trim();
+        if !(is_unc(value) || drive_prefix_len(value).is_some()) {
+            return Err(format!("%{name}% isn't a folder path"));
+        }
+        return resolve_inner(&format!("{value}{rest}"), home);
+    }
     if let Some(rest) = s.strip_prefix('~') {
         if !(rest.is_empty() || rest.starts_with('/') || rest.starts_with('\\')) {
             return Err("Only ~/ (your own home folder) is supported".into());
@@ -116,6 +129,17 @@ fn strip_quotes(s: &str) -> &str {
     } else {
         s
     }
+}
+
+/// Split a leading `%NAME%` off the input: `("NAME", rest)`. The rest must be
+/// empty or start with a separator, so `%a%b` is not a variable prefix.
+fn env_prefix(s: &str) -> Option<(&str, &str)> {
+    let body = s.strip_prefix('%')?;
+    let end = body.find('%')?;
+    let (name, rest) = (&body[..end], &body[end + 1..]);
+    let name_ok = !name.is_empty() && !name.contains(['/', '\\', '=']) && !name.chars().any(char::is_whitespace);
+    let rest_ok = rest.is_empty() || rest.starts_with(['/', '\\']);
+    (name_ok && rest_ok).then_some((name, rest))
 }
 
 fn is_unc(s: &str) -> bool {
@@ -217,7 +241,12 @@ pub fn completion(input: &str, home: &Path) -> Option<Result<Completion, String>
     };
     // Input that names a folder as a whole: "~", ".", "C:", "..", "~/x/.."
     let last = s.rsplit(['/', '\\']).next().unwrap_or(s);
-    let whole = s == "~" || s == "." || (s.len() == 2 && drive_prefix_len(s) == Some(2)) || last == "." || last == "..";
+    let whole = s == "~"
+        || s == "."
+        || (s.len() == 2 && drive_prefix_len(s) == Some(2))
+        || env_prefix(s).is_some_and(|(_, rest)| rest.is_empty())
+        || last == "."
+        || last == "..";
     let (prefix, partial) = if whole {
         (format!("{s}{sep}"), String::new())
     } else {
@@ -234,7 +263,15 @@ pub fn completion(input: &str, home: &Path) -> Option<Result<Completion, String>
     if partial.contains(INVALID_CHARS) || partial.contains(':') {
         return Some(Err(format!("Invalid character in “{partial}”")));
     }
-    Some(resolve_inner(&prefix, home).map(|dir| Completion {
+    let dir = match resolve_inner(&prefix, home) {
+        Ok(dir) => dir,
+        Err(e) => return Some(Err(e)),
+    };
+    // A variable can expand to a network path; don't list those either.
+    if is_unc(&dir.to_string_lossy()) {
+        return Some(Err(UNC_NOT_LISTED.into()));
+    }
+    Some(Ok(Completion {
         dir,
         partial,
         prefix,
