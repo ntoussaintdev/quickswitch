@@ -7,6 +7,13 @@ Each release needs a section headed "## [X.Y.Z] - YYYY-MM-DD" before its tag is 
 The Release workflow publishes that section as the GitHub release notes and fails without it.
 -->
 
+## [0.4.2] - 2026-11-11
+
+### Added
+- **Paste** into the search box with Ctrl+V (or Shift+Insert). Quotes from Explorer's "Copy as path" are removed, so a pasted path opens as a folder. Copying out of the box works too.
+- **Screen reader support**: Narrator, NVDA and JAWS can read the search box, the results and Settings. Moving through results with the arrow keys reads out each row.
+- **Text in other scripts and emoji** in window and tab titles (Chinese, Japanese, Arabic, ...) now shows properly instead of as boxes, using Windows' own fonts.
+
 ## [0.4.1] - 2026-11-11
 
 ### Added

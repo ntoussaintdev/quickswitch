@@ -75,7 +75,9 @@ impl ShortcutEditor {
                         for m in Mod::ALL {
                             ui.selectable_value(slot, Some(m), m.label());
                         }
-                    });
+                    })
+                    .response
+                    .accessible_name(format!("Modifier key {}", i + 1));
                 ui.label(RichText::new("+").color(TEXT_WEAK));
             }
             ComboBox::from_id_salt("shortcut-key")
@@ -86,7 +88,9 @@ impl ShortcutEditor {
                     for &k in KEYS {
                         ui.selectable_value(&mut self.choice.key, k, k);
                     }
-                });
+                })
+                .response
+                .accessible_name("Key");
         });
         if self.choice != before {
             self.status = None;

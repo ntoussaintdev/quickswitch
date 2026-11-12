@@ -35,6 +35,7 @@ Neither needs administrator rights. The binaries are not code-signed, so SmartSc
 | **↑ / ↓**, **Tab**, **PgUp / PgDn** | Move through results. In folder input, **Tab** completes the selected folder instead. |
 | **Enter** or click | Switch to the window / tab, or open the folder. |
 | **Ctrl + Enter** | Search the web for the typed text (or visit it, if it is a website), whatever row is selected. |
+| **Ctrl + V** | Paste into the search box. Surrounding spaces and the quotes Explorer's *Copy as path* adds are removed, so a pasted path opens as a folder. |
 | **Esc**, click elsewhere | Hide the popup. QuickSwitch keeps running. |
 | Tray icon left-click | Open search. |
 | Tray icon right-click | *Open search*, *Settings…*, *Start with Windows*, *Search browser tabs* and *Web search in results* (checkboxes; the last two on by default), *Exit QuickSwitch*. |
@@ -86,6 +87,11 @@ The tray checkbox adds or removes the value `QuickSwitch` under `HKCU\Software\M
 | *(none)* | Start in the tray, or open the popup of the running copy. |
 | `--background` | Start in the tray; if already running, do nothing (used at sign-in). |
 | `--exit` | Ask the running copy to exit and wait for it (used by the installer). |
+
+### 2.5 Accessibility and text
+
+- **Screen readers** (Narrator, NVDA, JAWS) and Voice Access can read the popup and Settings through UI Automation (egui's AccessKit). Focus stays in the search box; the highlighted row is reported as the active item, so ↑/↓ reads out each row as "title, app, kind".
+- **Other scripts and emoji** in titles (Chinese, Japanese, Arabic, ...) are drawn with Windows' own fallback fonts. The list of installed fonts is read on a background thread at start; a fallback font is loaded the first time a character needs it.
 
 ## 3. Settings
 

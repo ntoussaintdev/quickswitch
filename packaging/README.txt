@@ -23,6 +23,8 @@ Searching
                       Move through the results (Tab also moves).
   Enter or click      Switch to the window or tab, or open the folder.
   Ctrl + Enter        Search the web for what you typed.
+  Ctrl + V            Paste. Quotes around a pasted path (Explorer's
+                      "Copy as path") are removed.
   Esc, click elsewhere
                       Hide the popup. QuickSwitch keeps running.
 

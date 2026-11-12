@@ -1,6 +1,6 @@
 [package]
 name = "quickswitch"
-version = "0.4.1"
+version = "0.4.2"
 edition = "2024"
 description = "Spotlight-style window, Explorer tab and folder switcher for Windows 11"
 rust-version = "1.88"
@@ -22,7 +22,7 @@ wgpu = ["eframe/wgpu"]
 
 [dependencies]
 crossbeam-channel = "0.5.17"
-eframe = { version = "0.37", default-features = false, features = ["glow", "default_fonts"] }
+eframe = { version = "0.37", default-features = false, features = ["glow", "default_fonts", "clipboard", "accesskit", "system_fonts"] }
 global-hotkey = "0.10.0"
 nucleo-matcher = "0.3.1"
 raw-window-handle = "0.6"

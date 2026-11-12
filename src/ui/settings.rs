@@ -137,8 +137,9 @@ impl GeneralEditor {
 
         let v = &mut self.values;
         ui.horizontal(|ui| {
-            ui.label("Results shown");
-            ui.add(egui::Slider::new(&mut v.max_results, 1..=crate::config::MAX_RESULTS).integer());
+            let label = ui.label("Results shown");
+            ui.add(egui::Slider::new(&mut v.max_results, 1..=crate::config::MAX_RESULTS).integer())
+                .labelled_by(label.id);
         });
         ui.add_space(6.0);
         ui.checkbox(&mut v.browser_tabs, "Search browser tabs");
@@ -271,7 +272,8 @@ impl WebEditor {
                 egui::TextEdit::singleline(&mut self.custom_url)
                     .hint_text("https://example.com/search?q={}")
                     .desired_width(f32::INFINITY),
-            );
+            )
+            .accessible_name("Custom search address");
             ui.add_space(4.0);
         }
         if (self.engine.clone(), self.custom_url.clone()) != before {

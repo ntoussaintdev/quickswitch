@@ -135,6 +135,8 @@ impl Palette {
         let ui = &mut content;
 
         // Search field.
+        let pasted = ui.input(|i| i.events.iter().any(|e| matches!(e, egui::Event::Paste(_))));
+        let mut search_id = None;
         ui.horizontal(|ui| {
             magnifier(ui, SEARCH_FONT, TEXT_WEAK);
             let edit = egui::TextEdit::singleline(&mut self.query)
@@ -143,7 +145,8 @@ impl Palette {
                 .font(FontId::new(SEARCH_FONT, FontFamily::Proportional))
                 .frame(egui::Frame::NONE)
                 .desired_width(f32::INFINITY);
-            let response = ui.add(edit);
+            let response = ui.add(edit).accessible_name("Search QuickSwitch");
+            search_id = Some(response.id);
             if self.cursor_to_end {
                 self.cursor_to_end = false;
                 if let Some(mut state) = egui::TextEdit::load_state(ui.ctx(), response.id) {
@@ -158,6 +161,10 @@ impl Palette {
                 self.focus_pending = false;
             }
             if response.changed() {
+                if pasted && let Some(clean) = tidy_pasted(&self.query) {
+                    self.query = clean;
+                    self.cursor_to_end = true;
+                }
                 self.selected = 0;
                 self.scroll_pending = true;
                 action = Some(PaletteAction::QueryChanged);
@@ -172,6 +179,7 @@ impl Palette {
         let footer_height = 24.0;
         let list_height = (ui.available_height() - footer_height).max(ROW_HEIGHT);
         let pointer_moved = ui.input(|i| i.pointer.delta() != egui::Vec2::ZERO);
+        let mut selected_row = None;
         egui::ScrollArea::vertical()
             .max_height(list_height)
             .min_scrolled_height(list_height)
@@ -189,6 +197,9 @@ impl Palette {
                 }
                 for (i, item) in results.iter().enumerate() {
                     let row = result_row(ui, item, i == self.selected);
+                    if i == self.selected {
+                        selected_row = Some(row.id);
+                    }
                     if row.hovered() && pointer_moved {
                         self.selected = i;
                     }
@@ -201,6 +212,15 @@ impl Palette {
                 }
                 self.scroll_pending = false;
             });
+
+        // Keyboard focus stays in the search field; tell screen readers which
+        // row the arrow keys have highlighted so they read it out.
+        if let Some(search) = search_id {
+            ui.ctx().accesskit_node_builder(search, |node| match selected_row {
+                Some(row) => node.set_active_descendant(row.accesskit_id()),
+                None => node.clear_active_descendant(),
+            });
+        }
 
         // Footer: status (if any) on the left, hints/count on the right.
         ui.with_layout(Layout::bottom_up(Align::Min), |ui| {
@@ -312,6 +332,18 @@ fn result_row(ui: &mut egui::Ui, shown: &Shown, selected: bool) -> egui::Respons
     let item = &shown.item;
     let width = ui.available_width();
     let (rect, response) = ui.allocate_exact_size(egui::vec2(width, ROW_HEIGHT), Sense::click());
+    // The row is painted by hand, so name it for screen readers:
+    // "Releases · owner/repo, Chrome, Browser tab".
+    response.widget_info(|| {
+        let mut label = item.title.clone();
+        for part in [item.subtitle.as_str(), item.kind().label()] {
+            if !part.is_empty() {
+                label.push_str(", ");
+                label.push_str(part);
+            }
+        }
+        egui::WidgetInfo::selected(egui::accesskit::Role::ListBoxOption, true, selected, label)
+    });
     if !ui.is_rect_visible(rect) {
         return response;
     }
@@ -373,4 +405,17 @@ fn result_row(ui: &mut egui::Ui, shown: &Shown, selected: bool) -> egui::Respons
     painter.galley(egui::pos2(text_left, y), galley, TEXT);
 
     response
+}
+
+/// Pasted text, tidied: surrounding spaces (a copied line's newline becomes a
+/// space) and one pair of surrounding quotes, as Explorer's "Copy as path"
+/// adds, are removed. `None` when there is nothing to change.
+pub fn tidy_pasted(query: &str) -> Option<String> {
+    let trimmed = query.trim();
+    let unquoted = trimmed
+        .strip_prefix('"')
+        .and_then(|t| t.strip_suffix('"'))
+        .map(str::trim)
+        .unwrap_or(trimmed);
+    (unquoted != query).then(|| unquoted.to_string())
 }
