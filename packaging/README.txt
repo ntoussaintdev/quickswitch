@@ -21,7 +21,8 @@ Searching
                       any order. Matched letters are highlighted.
   Up / Down, PgUp / PgDn
                       Move through the results (Tab also moves).
-  Enter or click      Switch to the window or tab, or open the folder.
+  Enter or click      Switch to the window or tab, or open the folder or file.
+  Shift + Enter       On a file: show it in File Explorer instead.
   Ctrl + Enter        Search the web for what you typed.
   Ctrl + V            Paste. Quotes around a pasted path (Explorer's
                       "Copy as path") are removed.
@@ -81,6 +82,10 @@ As you type, the popup lists the matching subfolders, like a wildcard "ls":
 "~/proj" lists "Projects", "projects-old" and so on. Press Tab to complete the
 selected folder and keep typing the next level, or Enter to open it. Hidden
 folders (such as AppData) appear once you type the start of their name.
+
+Paste or type the full path of a file to open it: the file is the first row,
+Enter opens it with its default app (as a double-click would), and
+Shift + Enter shows it in File Explorer instead.
 
 If the folder is already open in an Explorer tab, Enter switches to that tab
 instead of opening another window. Network folders are not listed while you

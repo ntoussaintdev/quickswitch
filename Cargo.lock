@@ -2855,7 +2855,7 @@ dependencies = [
 
 [[package]]
 name = "quickswitch"
-version = "0.4.2"
+version = "0.4.3"
 dependencies = [
  "crossbeam-channel",
  "eframe",

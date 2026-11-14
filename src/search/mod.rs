@@ -47,6 +47,10 @@ pub enum Target {
     OpenFolder {
         path: PathBuf,
     },
+    /// Open a file with its default app (a pasted or typed file path).
+    OpenFile {
+        path: PathBuf,
+    },
     /// Open this address in the default browser (web search or website).
     Web {
         url: String,
@@ -61,6 +65,7 @@ pub enum Kind {
     BrowserTab,
     TerminalTab,
     Folder,
+    File,
     Web,
 }
 
@@ -72,6 +77,7 @@ impl Kind {
             Kind::BrowserTab => "Browser tab",
             Kind::TerminalTab => "Terminal tab",
             Kind::Folder => "Folder",
+            Kind::File => "File",
             Kind::Web => "Web",
         }
     }
@@ -105,6 +111,7 @@ impl SearchItem {
             Target::BrowserTab { terminal: false, .. } => Kind::BrowserTab,
             Target::BrowserTab { terminal: true, .. } => Kind::TerminalTab,
             Target::OpenFolder { .. } => Kind::Folder,
+            Target::OpenFile { .. } => Kind::File,
             Target::Web { .. } => Kind::Web,
         }
     }
@@ -114,7 +121,7 @@ impl SearchItem {
         match &self.target {
             Target::ExplorerTab { path, .. } => path.as_deref(),
             Target::OpenFolder { path } => Some(path),
-            Target::Window { .. } | Target::BrowserTab { .. } | Target::Web { .. } => None,
+            Target::Window { .. } | Target::BrowserTab { .. } | Target::OpenFile { .. } | Target::Web { .. } => None,
         }
     }
 }
@@ -406,7 +413,7 @@ impl Snapshot {
             Target::Window { hwnd } => hwnd != gone,
             Target::ExplorerTab { explorer_hwnd, .. } => explorer_hwnd != gone,
             Target::BrowserTab { window_hwnd, .. } => window_hwnd != gone,
-            Target::OpenFolder { .. } | Target::Web { .. } => true,
+            Target::OpenFolder { .. } | Target::OpenFile { .. } | Target::Web { .. } => true,
         });
         self.windows.retain(|w| w.hwnd != gone);
     }
@@ -536,6 +543,18 @@ pub fn folder_item(path: PathBuf, home: &Path) -> SearchItem {
         subtitle: display_path(&path, home),
         recent_key: format!("dir:{}", path_key(&path)),
         target: Target::OpenFolder { path },
+        match_on: MatchOn::Path,
+    }
+}
+
+/// Item for a file path typed or pasted into the box. Files are not
+/// remembered, so the recent key is empty.
+pub fn file_item(path: PathBuf, home: &Path) -> SearchItem {
+    SearchItem {
+        title: folder_name(&path),
+        subtitle: path.parent().map(|d| display_path(d, home)).unwrap_or_default(),
+        recent_key: String::new(),
+        target: Target::OpenFile { path },
         match_on: MatchOn::Path,
     }
 }

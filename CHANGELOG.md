@@ -7,6 +7,14 @@ Each release needs a section headed "## [X.Y.Z] - YYYY-MM-DD" before its tag is 
 The Release workflow publishes that section as the GitHub release notes and fails without it.
 -->
 
+## [0.4.3] - 2026-11-13
+
+### Added
+- **Open files by path**: paste or type the full path of a file (for example from Explorer's "Copy as path") and the file is the first result. Enter opens it with its default app, as a double-click in Explorer would. Shift+Enter shows it in File Explorer instead.
+
+### Fixed
+- Shift+Tab now moves up through the results. Before, it moved down like Tab.
+
 ## [0.4.2] - 2026-11-11
 
 ### Added

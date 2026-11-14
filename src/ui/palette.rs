@@ -23,6 +23,9 @@ pub enum PaletteAction {
     QueryChanged,
     /// Ctrl+Enter: search the web for the typed text, whatever is selected.
     WebSearch,
+    /// Shift+Enter: show the file at this index in Explorer (other rows
+    /// activate as with Enter).
+    Reveal(usize),
 }
 
 #[derive(Default)]
@@ -69,19 +72,23 @@ impl Palette {
 
         // Keys are consumed before the TextEdit sees them, so arrows don't
         // move the text cursor and Enter/Esc don't drop focus.
-        let (up, down, page_up, page_down, enter, escape, tab, shift_tab, ctrl_enter) = ui.input_mut(|i| {
-            (
-                i.consume_key(Modifiers::NONE, Key::ArrowUp),
-                i.consume_key(Modifiers::NONE, Key::ArrowDown),
-                i.consume_key(Modifiers::NONE, Key::PageUp),
-                i.consume_key(Modifiers::NONE, Key::PageDown),
-                i.consume_key(Modifiers::NONE, Key::Enter),
-                i.consume_key(Modifiers::NONE, Key::Escape),
-                i.consume_key(Modifiers::NONE, Key::Tab),
-                i.consume_key(Modifiers::SHIFT, Key::Tab),
-                i.consume_key(Modifiers::CTRL, Key::Enter),
-            )
-        });
+        // egui ignores an extra Shift when matching, so the Shift and Ctrl
+        // combinations are taken first or plain Tab/Enter would swallow them.
+        let (shift_tab, shift_enter, ctrl_enter, up, down, page_up, page_down, enter, escape, tab) =
+            ui.input_mut(|i| {
+                (
+                    i.consume_key(Modifiers::SHIFT, Key::Tab),
+                    i.consume_key(Modifiers::SHIFT, Key::Enter),
+                    i.consume_key(Modifiers::CTRL, Key::Enter),
+                    i.consume_key(Modifiers::NONE, Key::ArrowUp),
+                    i.consume_key(Modifiers::NONE, Key::ArrowDown),
+                    i.consume_key(Modifiers::NONE, Key::PageUp),
+                    i.consume_key(Modifiers::NONE, Key::PageDown),
+                    i.consume_key(Modifiers::NONE, Key::Enter),
+                    i.consume_key(Modifiers::NONE, Key::Escape),
+                    i.consume_key(Modifiers::NONE, Key::Tab),
+                )
+            });
         // In path mode Tab completes the selected folder instead of moving.
         let complete = path_mode && tab;
         let tab = tab && !path_mode;
@@ -117,6 +124,9 @@ impl Palette {
         }
         if enter && n > 0 {
             action = Some(PaletteAction::Activate(self.selected));
+        }
+        if shift_enter && n > 0 {
+            action = Some(PaletteAction::Reveal(self.selected));
         }
         if ctrl_enter && !path_mode && !self.query.trim().is_empty() {
             action = Some(PaletteAction::WebSearch);
@@ -235,7 +245,10 @@ impl Palette {
                     None => {
                         ui.spacing_mut().item_spacing.x = 4.0;
                         arrow_keys(ui, SMALL_FONT, TEXT_FAINT);
-                        let hint = if path_mode {
+                        let on_file = results.get(self.selected).is_some_and(|r| r.item.kind() == Kind::File);
+                        let hint = if on_file {
+                            "navigate   Enter open   Shift+Enter show in folder   Esc close"
+                        } else if path_mode {
                             "navigate   Tab complete   Enter open   Esc close"
                         } else {
                             "navigate   Enter select   Ctrl+Enter web   Esc close"
@@ -269,6 +282,7 @@ fn badge_color(kind: Kind) -> Color32 {
         Kind::TerminalTab => BADGE_TERMINAL,
         Kind::Web => BADGE_WEB,
         Kind::Folder => BADGE_FOLDER,
+        Kind::File => BADGE_FILE,
     }
 }
 

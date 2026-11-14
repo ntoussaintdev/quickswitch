@@ -110,6 +110,16 @@ fn resolve_inner(s: &str, home: &Path) -> Result<PathBuf, String> {
     Err("Not a recognised path".into())
 }
 
+/// The existing file that path-like input names, if it names one.
+/// Network (UNC) paths are not checked: a slow server could stall typing.
+pub fn file(input: &str, home: &Path) -> Option<PathBuf> {
+    let path = resolve(input, home)?.ok()?;
+    if is_unc(&path.to_string_lossy()) {
+        return None;
+    }
+    std::fs::metadata(&path).ok()?.is_file().then_some(path)
+}
+
 /// Resolve and check the filesystem. `None` when the input isn't path-like.
 pub fn check(input: &str, home: &Path) -> Option<PathCheck> {
     Some(match resolve(input, home)? {

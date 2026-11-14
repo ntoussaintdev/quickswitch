@@ -19,6 +19,7 @@ pub const BADGE_BROWSER: Color32 = Color32::from_rgb(0xec, 0x48, 0x99);
 pub const BADGE_TERMINAL: Color32 = Color32::from_rgb(0x14, 0xb8, 0xa6);
 pub const BADGE_WEB: Color32 = Color32::from_rgb(0x0e, 0xa5, 0xe9);
 pub const BADGE_FOLDER: Color32 = Color32::from_rgb(0x22, 0xc5, 0x5e);
+pub const BADGE_FILE: Color32 = Color32::from_rgb(0x8b, 0x5c, 0xf6);
 
 pub const SEARCH_FONT: f32 = 20.0;
 pub const TITLE_FONT: f32 = 15.0;

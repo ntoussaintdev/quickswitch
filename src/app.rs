@@ -30,7 +30,8 @@ use crate::search::browsers::Engine as TabEngine;
 use crate::search::matcher::Ranker;
 use crate::search::worker::{Request, TabWorker};
 use crate::search::{
-    Kind, Qualifier, SearchItem, Shown, Snapshot, Target, WebMode, display_path, folder_item, parse_qualifier, web_item,
+    Kind, Qualifier, SearchItem, Shown, Snapshot, Target, WebMode, display_path, file_item, folder_item,
+    parse_qualifier, web_item,
 };
 use crate::startup;
 use crate::ui::palette::{Palette, PaletteAction, Status};
@@ -554,8 +555,11 @@ impl QuickSwitchApp {
             }
             Some(Ok(c)) => c,
         };
+        // A pasted or typed file path: the file itself is the first row.
+        let file = paths::file(query, &self.home);
         let entries = match self.list_dir(&completion.dir) {
             Ok(e) => e,
+            Err(_) if file.is_some() => Rc::new(Vec::new()),
             Err(_) => {
                 self.palette.status = Some(Status::Error(format!(
                     "Folder not found: {}",
@@ -567,6 +571,9 @@ impl QuickSwitchApp {
 
         let limit = self.config.max_results;
         let mut out = Vec::new();
+        if let Some(path) = file {
+            out.push(Shown::plain(file_item(path, &self.home)));
+        }
         if completion.partial.is_empty() {
             // Right after a separator: the folder itself first.
             out.push(Shown::plain(self.folder_result(completion.dir.clone())));
@@ -710,6 +717,10 @@ impl QuickSwitchApp {
                     self.update_busy();
                 }
             }
+            Target::OpenFile { path } => match actions::open_file(path) {
+                Ok(()) => self.hide(ctx),
+                Err(e) => self.palette.status = Some(Status::Error(e)),
+            },
             Target::Web { url } => match actions::open_url(url) {
                 Ok(()) => self.hide(ctx),
                 Err(e) => self.palette.status = Some(Status::Error(e)),
@@ -726,6 +737,8 @@ impl QuickSwitchApp {
                         self.remember(&item);
                         self.hide(ctx);
                     }
+                    // A network path is only checked on Enter, and may be a file.
+                    Err(_) if path.is_file() => self.activate_item(ctx, file_item(path.clone(), &self.home)),
                     Err(e) => {
                         if !path.is_dir() {
                             self.config.forget_folder(path);
@@ -737,6 +750,20 @@ impl QuickSwitchApp {
                     }
                 }
             }
+        }
+    }
+
+    /// Shift+Enter: show a file in Explorer; any other row activates as usual.
+    fn reveal(&mut self, ctx: &egui::Context, index: usize) {
+        let Some(item) = self.shown.get(index).map(|s| s.item.clone()) else {
+            return;
+        };
+        match &item.target {
+            Target::OpenFile { path } => match actions::reveal(path) {
+                Ok(()) => self.hide(ctx),
+                Err(e) => self.palette.status = Some(Status::Error(e)),
+            },
+            _ => self.activate_item(ctx, item),
         }
     }
 
@@ -938,6 +965,7 @@ impl eframe::App for QuickSwitchApp {
             Some(PaletteAction::QueryChanged | PaletteAction::Completed) => self.refresh_results(),
             Some(PaletteAction::Activate(i)) => self.activate(&ctx, i),
             Some(PaletteAction::WebSearch) => self.web_search_now(&ctx),
+            Some(PaletteAction::Reveal(i)) => self.reveal(&ctx, i),
             None => {}
         }
     }

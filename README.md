@@ -33,9 +33,10 @@ Neither needs administrator rights. The binaries are not code-signed, so SmartSc
 | **Ctrl + Win + K** | Opens the popup on the monitor you are using. Press again to close. |
 | Type | Filters open windows, Explorer tabs, browser and Terminal tabs, and remembered folders. Every word must match, in any order; matched letters are highlighted. |
 | **↑ / ↓**, **Tab**, **PgUp / PgDn** | Move through results. In folder input, **Tab** completes the selected folder instead. |
-| **Enter** or click | Switch to the window / tab, or open the folder. |
+| **Enter** or click | Switch to the window / tab, or open the folder or file. |
+| **Shift + Enter** | On a file row: show the file in File Explorer, selected, instead of opening it. |
 | **Ctrl + Enter** | Search the web for the typed text (or visit it, if it is a website), whatever row is selected. |
-| **Ctrl + V** | Paste into the search box. Surrounding spaces and the quotes Explorer's *Copy as path* adds are removed, so a pasted path opens as a folder. |
+| **Ctrl + V** | Paste into the search box. Surrounding spaces and the quotes Explorer's *Copy as path* adds are removed, so a pasted path opens as a folder or file. |
 | **Esc**, click elsewhere | Hide the popup. QuickSwitch keeps running. |
 | Tray icon left-click | Open search. |
 | Tray icon right-click | *Open search*, *Settings…*, *Start with Windows*, *Search browser tabs* and *Web search in results* (checkboxes; the last two on by default), *Exit QuickSwitch*. |
@@ -73,6 +74,7 @@ While you type, the popup lists the subfolders of the folder before the last `/`
 - Hidden and system folders (e.g. `AppData`) appear only once the typed part is a prefix of their name.
 - If the folder is already open in an Explorer tab, the row is that tab and **Enter** switches to it (no new window).
 - A listing is cached while you type inside the same folder and refreshed each time the popup opens.
+- **Files**: when the whole input is the path of an existing file (for example one pasted with *Copy as path*), that file is the first row. **Enter** opens it with its default app, as a double-click in Explorer would (programs and scripts run); **Shift + Enter** shows it in Explorer instead. Files are not listed while you type a partial name and are not remembered. A network path is checked when you press Enter and opens as a file if it is one.
 
 Spaces are fine, surrounding quotes are ignored. A missing folder shows "Folder not found" and opens nothing. Not translated on purpose: `~otheruser`, WSL paths like `/home/alice`, environment variables. Network folders are not listed while typing (a slow server could stall the popup); they are checked when you press Enter.
 

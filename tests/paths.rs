@@ -2,7 +2,10 @@
 
 use std::path::{Path, PathBuf};
 
-use quickswitch::actions::paths::{PathCheck, UNC_NOT_LISTED, check, completion, list_dirs, looks_like_path, resolve};
+use quickswitch::actions::paths::{
+    PathCheck, UNC_NOT_LISTED, check, completion, file, list_dirs, looks_like_path, resolve,
+};
+use quickswitch::search::{Kind, Target, file_item};
 
 fn home() -> PathBuf {
     PathBuf::from(r"C:\Users\alice")
@@ -228,4 +231,51 @@ fn completion_after_environment_variable_keeps_it_as_typed() {
     assert_eq!(dir, system_root());
     assert_eq!(partial, "");
     assert_eq!(next, "%systemroot%/Next/");
+}
+
+#[test]
+fn file_finds_pasted_file_paths() {
+    let dir = std::env::temp_dir().join(format!("qs-file-{}", std::process::id()));
+    let sub = dir.join("Docs");
+    std::fs::create_dir_all(&sub).unwrap();
+    let report = sub.join("report v2.pdf");
+    std::fs::write(&report, "x").unwrap();
+    let home = Path::new(&dir);
+    let full = report.to_string_lossy().into_owned();
+
+    // As pasted: plain, with "Copy as path" quotes, with forward slashes.
+    assert_eq!(file(&full, home), Some(report.clone()));
+    assert_eq!(file(&format!("\"{full}\""), home), Some(report.clone()));
+    assert_eq!(file(&full.replace('\\', "/"), home), Some(report.clone()));
+    assert_eq!(file("~/Docs/report v2.pdf", home), Some(report.clone()));
+
+    // Folders, missing files, words and network paths are not files.
+    assert_eq!(file("~/Docs", home), None);
+    assert_eq!(file("~/Docs/missing.pdf", home), None);
+    assert_eq!(file("report v2.pdf", home), None);
+    assert_eq!(file(r"\\server\share\report.pdf", home), None);
+
+    // The file still splits as folder input, so its folder can be listed.
+    let c = completion(&full, home).unwrap().unwrap();
+    assert_eq!(c.dir, sub);
+    assert_eq!(c.partial, "report v2.pdf");
+
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn file_item_opens_the_file() {
+    let item = file_item(PathBuf::from(r"C:\Users\alice\Docs\report.pdf"), &home());
+    assert_eq!(item.kind(), Kind::File);
+    assert_eq!(item.title, "report.pdf");
+    assert_eq!(item.subtitle, "~/Docs");
+    assert_eq!(item.folder(), None);
+    // Files are not remembered.
+    assert!(item.recent_key.is_empty());
+    assert_eq!(
+        item.target,
+        Target::OpenFile {
+            path: PathBuf::from(r"C:\Users\alice\Docs\report.pdf")
+        }
+    );
 }

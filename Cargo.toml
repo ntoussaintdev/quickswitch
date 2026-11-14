@@ -1,6 +1,6 @@
 [package]
 name = "quickswitch"
-version = "0.4.2"
+version = "0.4.3"
 edition = "2024"
 description = "Spotlight-style window, Explorer tab and folder switcher for Windows 11"
 rust-version = "1.88"
