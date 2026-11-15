@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent access: qsctl and MCP</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #12161c; --fg: #e3e8ef; --muted: #9aa5b4; --line: #2a323d; --soft: #1a2029; --accent: #7aa2ff;
+  --ok: #4ade80; --warn: #fbbf24;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #ffffff; --fg: #1c2430; --muted: #5b6675; --line: #dfe4ea; --soft: #f4f6f9; --accent: #1d4ed8;
+  --ok: #15803d; --warn: #b45309;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Arial, sans-serif; }
+.doc-top { max-width: 1400px; margin: 0 auto; padding: 14px 20px 0; display: flex; justify-content: flex-end; }
+#docTheme { font: inherit; font-size: 14px; padding: 4px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg); color: var(--muted); cursor: pointer; }
+#docTheme:hover { color: var(--fg); }
+.doc-layout { --toc-w: 220px; --toc-gap: 44px; max-width: 1400px; margin: 0 auto; padding: 14px 20px 120px; display: grid; grid-template-columns: var(--toc-w) minmax(0, 1fr); gap: var(--toc-gap); }
+nav.doc-toc { position: sticky; top: 24px; align-self: start; max-height: calc(100vh - 48px); overflow: auto; font-size: 14px; transition: opacity .2s, visibility .2s; }
+nav.doc-toc.is-hidden { opacity: 0; visibility: hidden; }
+nav.doc-toc p { font-weight: 600; margin: 0 0 10px; }
+nav.doc-toc a, .toc-panel a { display: block; padding: 5px 10px; color: var(--muted); text-decoration: none; border-left: 2px solid var(--line); }
+nav.doc-toc a:hover, .toc-panel a:hover { color: var(--fg); }
+nav.doc-toc a.is-current, .toc-panel a.is-current { color: var(--accent); border-left-color: var(--accent); font-weight: 600; }
+nav.doc-toc a.sub, .toc-panel a.sub { padding-left: 22px; font-size: 13px; }
+@media (max-width: 900px) {
+  .doc-layout { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  nav.doc-toc { position: static; max-height: none; }
+  nav.doc-toc.is-hidden { opacity: 1; visibility: visible; }
+}
+main { min-width: 0; }
+main > * { max-width: 780px; }
+main > .doc-wide { max-width: none; overflow-x: auto; margin-left: calc(-1 * (var(--toc-w) + var(--toc-gap))); margin-top: 18px; margin-bottom: 22px; }
+@media (max-width: 900px) { main > .doc-wide { margin-left: 0; } }
+.doc-wide-in { min-width: 1100px; }
+h1 { font-size: 28px; line-height: 1.25; margin: 0 0 6px; }
+h2 { font-size: 22px; margin: 44px 0 10px; scroll-margin-top: 16px; }
+h3 { font-size: 17px; margin: 24px 0 6px; scroll-margin-top: 16px; }
+ul { padding-left: 22px; } li { margin: 4px 0; }
+a { color: var(--accent); }
+code { font: 14px/1.4 Consolas, "Cascadia Mono", ui-monospace, monospace; background: var(--soft); padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--soft); padding: 10px 12px; border-radius: 6px; font: 13.5px/1.5 Consolas, "Cascadia Mono", ui-monospace, monospace; overflow-x: auto; margin: 10px 0 14px; }
+pre code { background: none; padding: 0; font: inherit; }
+.lede { color: var(--muted); margin: 0 0 8px; }
+.meta { color: var(--muted); font-size: 14px; }
+.doc-table { overflow: visible; }
+table { border-collapse: collapse; width: 100%; margin: 10px 0 14px; font-size: 15px; }
+th, td { text-align: left; vertical-align: top; padding: 7px 10px; border-bottom: 1px solid var(--line); }
+th { color: var(--muted); font-weight: 600; }
+.doc-table thead th { position: sticky; top: 0; z-index: 2; background: var(--soft); box-shadow: 0 1px 0 var(--line); border-bottom: 0; }
+@media (max-width: 900px) { .doc-table { max-height: 80vh; overflow: auto; } }
+.note { border-left: 3px solid var(--accent); background: var(--soft); padding: 8px 14px; border-radius: 0 6px 6px 0; margin: 12px 0; }
+.rec { color: var(--ok); font-weight: 600; }
+.step { font-weight: 700; }
+.toc-btn { position: fixed; left: 10px; top: 50%; transform: translateY(-50%); z-index: 50; width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); background: var(--soft); color: var(--muted); cursor: pointer; font-size: 15px; }
+.toc-btn:hover { color: var(--fg); }
+.toc-panel { position: fixed; left: 52px; top: 50%; transform: translateY(-50%); z-index: 51; width: min(300px, calc(100vw - 80px)); max-height: 80vh; overflow: auto; background: var(--soft); border: 1px solid var(--line); border-radius: 8px; padding: 10px 8px; font-size: 14px; box-shadow: 0 12px 40px #0006; }
+.toc-btn[hidden], .toc-panel[hidden] { display: none; }
+</style>
+</head>
+<body>
+<div class="doc-top"><button type="button" id="docTheme">Light mode</button></div>
+<div class="doc-layout">
+<nav class="doc-toc" aria-label="Contents">
+  <p>Contents</p>
+  <a href="#summary">1. Summary</a>
+  <a href="#today">2. What exists today</a>
+  <a href="#decisions">3. Decisions</a>
+  <a href="#channel">4. Part A: agent channel and qsctl</a>
+  <a href="#mcp">5. Part B: MCP server</a>
+  <a href="#steps">6. Implementation steps</a>
+  <a href="#tests">7. Automated tests</a>
+  <a href="#operator">8. Operator testing</a>
+  <a href="#risks">9. Risks and open points</a>
+  <a href="#estimate">10. Estimate</a>
+</nav>
+<main>
+<h1>Agent access: qsctl and an MCP server</h1>
+<p class="lede">Let AI agents and scripts use QuickSwitch's index of windows and tabs, and switch to them, without driving the popup.</p>
+<p class="meta">Created 2026-11-15 · Status: proposed · Target version: 0.5.0</p>
+
+<h2 id="summary">1. Summary</h2>
+<ul>
+  <li>The popup already has a UI Automation tree (0.4.2), but an agent can only use it by pressing the hotkey, typing, reading rows and pressing Enter. The index itself is not reachable while the popup is hidden.</li>
+  <li><b>Part A</b> adds a local, per-user named pipe to the running QuickSwitch and a small console program, <code>qsctl.exe</code>, with <code>search</code>, <code>switch</code>, <code>open</code> and <code>status</code>. Searches use the same snapshot, matcher, type filters and ranking as the popup, without showing it.</li>
+  <li><b>Part B</b> adds <code>qsctl mcp</code>: a stdio MCP server with three tools (<code>search</code>, <code>switch_to</code>, <code>open</code>) that call Part A. It contains no search logic of its own.</li>
+  <li>Agent access is <b>off by default</b>. A checkbox in <i>Settings → General</i> turns it on. Agent actions leave no history: they don't change recent picks or remembered folders.</li>
+  <li><code>open</code> refuses programs and shortcuts. Agents can open folders, documents and <code>http(s)</code> addresses, but can't use QuickSwitch to run code.</li>
+  <li>About 30 minutes of agent time (§10), plus the operator's hands-on checks (§8).</li>
+</ul>
+
+<h2 id="today">2. What exists today</h2>
+<ul>
+  <li><b>Accessibility tree.</b> eframe's <code>accesskit</code> feature is on. The search box is a text field whose active item is the highlighted row (<code>src/ui/palette.rs:229</code>). Rows are list-box options named "title, subtitle, kind" (<code>src/ui/palette.rs:351</code>). This stays as it is: it serves screen readers and agents that drive the screen.</li>
+  <li><b>Talking to the running copy.</b> <code>src/os/instance.rs</code> has a named mutex and two auto-reset events (<code>Open</code>, <code>Exit</code>). They can signal but can't carry data, so there's nothing to answer a query with.</li>
+  <li><b>Search lives in the app.</b> <code>QuickSwitchApp::open</code> builds a <code>Snapshot</code> and asks the shell worker to scan Explorer and browser tabs. <code>refresh_results</code> ranks the snapshot against the palette's query. <code>activate_item</code> switches, then hides the popup and updates history. All three are tied to the palette's state (<code>self.visible</code>, <code>pending_tab</code>, <code>palette.status</code>).</li>
+  <li><b>Switching.</b> <code>win::activate</code> is a plain <code>SetForegroundWindow</code>. It works today because the popup is in the foreground when Enter is pressed. A request from a hidden tray app will often be refused by Windows' foreground lock (§4.5).</li>
+  <li><b>No console.</b> Release builds of <code>QuickSwitch.exe</code> use the <code>windows</code> subsystem. Output written to stdout from it doesn't reach a terminal, and shells don't wait for it. That's why the client is a separate console program.</li>
+</ul>
+
+<h2 id="decisions">3. Decisions</h2>
+<p>The recommended choice is listed first. The ones marked <b>confirm</b> are yours to change before implementation.</p>
+<div class="doc-table"><table>
+<thead><tr><th>#</th><th>Question</th><th>Choice</th></tr></thead>
+<tbody>
+<tr><td>D1</td><td>How do agents reach the running copy?</td><td>Named pipe, one JSON request and one JSON reply per connection. Same user and session only.</td></tr>
+<tr><td>D2</td><td>Where do the commands live? <b>confirm</b></td><td>A second binary, <code>qsctl.exe</code>, in the console subsystem, shipped next to <code>QuickSwitch.exe</code> in both packages. Alternative: <code>QuickSwitch.exe --list</code> with <code>AttachConsole</code>, which is awkward because shells don't wait for a GUI program and pipes behave differently.</td></tr>
+<tr><td>D3</td><td>Default state <b>confirm</b></td><td>Off. <i>Settings → General → "Let AI agents and scripts use QuickSwitch (qsctl, MCP)"</i>. The pipe exists only while the box is ticked, and ticking or unticking it takes effect at once.</td></tr>
+<tr><td>D4</td><td>History</td><td>Agent searches and switches don't change <code>recent</code> or <code>folders</code> in <code>config.toml</code>. Agent scans still note Explorer folders they see, as a popup scan does.</td></tr>
+<tr><td>D5</td><td>What can <code>open</code> open? <b>confirm</b></td><td>Folders, files whose extension isn't in <code>PATHEXT</code> or <code>.lnk .url .scf .appref-ms .msi .msc .cpl</code>, and <code>http</code>/<code>https</code> addresses. Everything else is refused with a clear message.</td></tr>
+<tr><td>D6</td><td>Web row</td><td>Not in agent results unless the query asks for it (<code>web:</code>, <code>gpt:</code>). Agents have their own web search.</td></tr>
+<tr><td>D7</td><td>QuickSwitch not running</td><td><code>qsctl</code> starts <code>QuickSwitch.exe --background</code> from its own folder and waits up to 3&nbsp;s. <code>--no-start</code> turns this off. The MCP server always tries to start it.</td></tr>
+<tr><td>D8</td><td>MCP implementation</td><td>Hand-written JSON-RPC over stdio with <code>serde_json</code>. No async runtime or MCP SDK crate: three tools don't justify tokio in the binary.</td></tr>
+<tr><td>D9</td><td>Respecting settings</td><td>Agents see browser and Terminal tabs only when those options are on, exactly like the popup. <code>max_results</code> is the default limit; a request may ask for 1–50.</td></tr>
+</tbody></table></div>
+
+<h2 id="channel">4. Part A: agent channel and qsctl</h2>
+
+<h3 id="pipe">4.1 Pipe and security</h3>
+<ul>
+  <li><b>Name:</b> <code>\\.\pipe\QuickSwitch.Agent.&lt;user&gt;.&lt;session id&gt;</code>. Pipe names are machine-wide, unlike the <code>Local\</code> objects, so the session id keeps two signed-in users or two sessions apart.</li>
+  <li><b>Created with</b> <code>FILE_FLAG_FIRST_PIPE_INSTANCE</code>, so no other process can create the name first, and <code>PIPE_REJECT_REMOTE_CLIENTS</code>.</li>
+  <li><b>Explicit security descriptor.</b> The default descriptor for a named pipe gives read access to Everyone, which is not acceptable here. Use the SDDL <code>D:P(A;;GA;;;&lt;user SID&gt;)(A;;GA;;;SY)</code>, built from the process token. This needs the <code>Win32_Security_Authorization</code> feature of the <code>windows</code> crate. Low-integrity processes (browser sandboxes) are already blocked by the default medium-integrity label.</li>
+  <li><b>Client check.</b> Before it sends anything, <code>qsctl</code> calls <code>GetNamedPipeServerProcessId</code> and checks that the server is <code>QuickSwitch.exe</code> in the same session.</li>
+  <li><b>Server thread.</b> A <code>quickswitch-agent</code> thread accepts one connection at a time. It reads one line (at most 64&nbsp;KB), turns it into <code>AppCommand::Agent { request, reply }</code>, waits up to 8&nbsp;s for the reply, writes it and disconnects. A second client waits in <code>WaitNamedPipe</code> for up to 2&nbsp;s. Unticking the setting or exiting stops the thread through a quit event, as in <code>instance.rs</code>.</li>
+</ul>
+
+<h3 id="protocol">4.2 Protocol</h3>
+<p>Requests and replies are single-line JSON (shown wrapped here). <code>v</code> is the protocol version, so the client can say "update QuickSwitch" instead of failing oddly.</p>
+<pre><code>→ {"v":1,"op":"search","query":"mail","kind":"browser","limit":10}
+← {"ok":true,"complete":true,"items":[
+     {"id":"btab:3f2a1c:9d41e07a","kind":"browser_tab","title":"Inbox (3)","subtitle":"Chrome · Work"},
+     {"id":"win:1a04b2","kind":"window","title":"Mail","subtitle":"HxOutlook"}]}
+
+→ {"v":1,"op":"switch","id":"btab:3f2a1c:9d41e07a"}
+← {"ok":true,"foreground":true}
+
+→ {"v":1,"op":"open","target":"~/Documents/notes"}
+← {"ok":true,"opened":"folder","path":"C:\\Users\\…\\Documents\\notes"}
+
+→ {"v":1,"op":"status"}
+← {"ok":true,"version":"0.5.0","browser_tabs":true,"terminal_tabs":true}
+
+← {"ok":false,"error":{"code":"gone","message":"That window has closed."}}</code></pre>
+<ul>
+  <li><b><code>query</code></b> takes the same text as the popup, type filters included (<code>term: build</code>). <b><code>kind</code></b> is optional and takes the same words as the filters (<code>browser</code>, <code>br</code>, <code>terminal</code>, <code>folder</code>…), so <code>{"query":"mail","kind":"browser"}</code> equals <code>"browser: mail"</code>. A path-like query returns the folder suggestions the popup would show.</li>
+  <li><b><code>complete</code></b> is false when an Explorer or browser scan didn't finish within 3&nbsp;s. The reply then holds what was known, and <code>pending</code> lists the missing sources (<code>["browser_tabs"]</code>).</li>
+  <li><b>Error codes:</b> <code>bad_request</code>, <code>unknown_id</code>, <code>gone</code>, <code>refused</code> (D5), <code>not_found</code> (open), <code>foreground_denied</code>, <code>busy</code>, <code>timeout</code>, <code>internal</code>.</li>
+  <li><b><code>kind</code> values in replies:</b> <code>window</code>, <code>explorer_tab</code>, <code>browser_tab</code>, <code>terminal_tab</code>, <code>folder</code>, <code>file</code>, <code>web</code>. <code>folder</code> and <code>file</code> rows also carry <code>path</code>.</li>
+</ul>
+
+<h3 id="ids">4.3 Result ids</h3>
+<p>Rows have no ids today. An id is derived from <code>Target</code>, so it needs no table on the server and stays valid while the thing exists:</p>
+<div class="doc-table"><table>
+<thead><tr><th>Target</th><th>Id</th></tr></thead>
+<tbody>
+<tr><td>Window</td><td><code>win:&lt;hwnd hex&gt;</code></td></tr>
+<tr><td>Explorer tab</td><td><code>etab:&lt;tab hwnd hex&gt;</code></td></tr>
+<tr><td>Browser or Terminal tab</td><td><code>btab:&lt;window hwnd hex&gt;:&lt;key hex&gt;</code></td></tr>
+<tr><td>Folder, file</td><td><code>folder:&lt;path&gt;</code>, <code>file:&lt;path&gt;</code></td></tr>
+<tr><td>Web</td><td><code>web:&lt;url&gt;</code></td></tr>
+</tbody></table></div>
+<p><code>switch</code> looks the id up in the agent snapshot (§4.4), rebuilding it first if it's older than 30&nbsp;s. Tab ids need the snapshot for their name and position. Window, folder, file and web ids can be acted on from the id alone. A browser tab's <code>key</code> may be stale if the popup rescanned since; the worker then falls back to name and position, as it does for the popup.</p>
+
+<h3 id="headless">4.4 Searching without the popup</h3>
+<ol>
+  <li><span class="step">Shared ranking.</span> Move the body of <code>refresh_results</code> into a function that takes a snapshot, query, config, engine and ranker and returns <code>Vec&lt;Shown&gt;</code> plus the status and empty hint. The palette calls it and keeps its own status handling. Folder suggestions (path mode) go through the same function.</li>
+  <li><span class="step">Agent session.</span> Add an <code>AgentSession</code> to the app with its own <code>Snapshot</code>, generation, pending flags, build time, and the requests waiting for scans. Generations come from the app's one counter, so a worker answer is routed by generation to either the palette or the agent session. The two never share a snapshot.</li>
+  <li><span class="step">Scans.</span> A search builds the session snapshot (<code>win::enumerate</code> plus remembered folders), sends the worker the same <code>Scan</code> / <code>ScanBrowsers</code> requests <code>open</code> sends, and answers when both have merged or after 3&nbsp;s. A snapshot younger than 2&nbsp;s is reused without rescanning, because agents often search several times in a row.</li>
+  <li><span class="step">The popup is never touched.</span> Agent requests don't open, hide or repaint the popup, and don't change its query, selection or status. The <code>Tabs</code> and <code>BrowserTabs</code> handlers drop their <code>self.visible</code> check for agent generations only.</li>
+</ol>
+
+<h3 id="switch">4.5 Switching and the foreground lock</h3>
+<ol>
+  <li><span class="step">Split activation.</span> Split <code>activate_item</code> into <code>activate_target(item) → Done(Result) | Pending(hwnd)</code> and the palette's wrapper, which remembers the pick, hides the popup or shows the error. The agent path uses <code>activate_target</code> only and keeps its own <code>pending: Option&lt;(hwnd, reply)&gt;</code>. <code>TabSelected</code> and <code>BrowserTabSelected</code> check the agent's pending entry before the palette's.</li>
+  <li><span class="step">Let the server take the foreground.</span> <code>qsctl</code> calls <code>AllowSetForegroundWindow(server pid)</code> before a <code>switch</code> or <code>open</code>. This helps when the caller may set the foreground, as a terminal the user just typed in usually can.</li>
+  <li><span class="step">Fallback.</span> If <code>SetForegroundWindow</code> is still refused, try once more after the usual workaround: a synthetic Alt press and release with <code>SendInput</code>, which counts as the last input. If that fails too, Windows flashes the taskbar button and the reply is <code>{"ok":true,"foreground":false}</code> with a message. The agent is told; nothing pretends it worked.</li>
+  <li><span class="step">Popup open.</span> If the user has the popup open when an agent switches, the popup loses focus and hides itself, as with any other window change. No special handling is needed.</li>
+</ol>
+
+<h3 id="cli">4.6 qsctl commands</h3>
+<div class="doc-table"><table>
+<thead><tr><th>Command</th><th>Does</th></tr></thead>
+<tbody>
+<tr><td><code>qsctl search [text…] [--kind K] [--limit N] [--json]</code></td><td>Prints one row per line: <code>id  kind  title — subtitle</code>. With <code>--json</code>, prints the reply object.</td></tr>
+<tr><td><code>qsctl switch &lt;id&gt;</code></td><td>Switches to the result. Also takes text: <code>qsctl switch "inbox"</code> switches to the top result, and fails with the top 5 listed if two results tie.</td></tr>
+<tr><td><code>qsctl open &lt;path-or-url&gt;</code></td><td>Opens a folder (an open Explorer tab is reused), a document or an address (D5). Takes the same path forms as the popup (<code>~/x</code>, <code>%APPDATA%/x</code>, <code>//server/share</code>).</td></tr>
+<tr><td><code>qsctl status [--json]</code></td><td>Says whether QuickSwitch is running, its version, and whether agent access is on.</td></tr>
+<tr><td><code>qsctl mcp</code></td><td>Runs the MCP server on stdin/stdout (§5).</td></tr>
+<tr><td><code>--no-start</code></td><td>Don't start QuickSwitch if it isn't running (D7).</td></tr>
+</tbody></table></div>
+<p><b>Exit codes:</b> 0 success; 1 the request failed (message on stderr); 2 QuickSwitch isn't running and couldn't be started; 3 agent access is off ("Turn it on in QuickSwitch Settings → General"); 4 usage error. "Running but no pipe" is told apart from "not running" by opening the instance mutex.</p>
+
+<h3 id="setting">4.7 Setting</h3>
+<ul>
+  <li>Add <code>agent_access: bool</code> (default <code>false</code>) to <code>Config</code>, with serde default so older files still load.</li>
+  <li><i>Settings → General</i> gets one checkbox under the tab options: <b>Let AI agents and scripts use QuickSwitch (qsctl, MCP)</b>, with the grey note "They can list your window and tab titles and switch between them." Saving starts or stops the pipe thread at once.</li>
+  <li>This is the only screen change: one checkbox row. The plan has no interactive demo for that reason (see §9).</li>
+</ul>
+
+<h2 id="mcp">5. Part B: MCP server</h2>
+
+<h3 id="mcp-transport">5.1 Transport</h3>
+<ul>
+  <li><code>qsctl mcp</code> reads newline-delimited JSON-RPC 2.0 from stdin and writes replies to stdout. Logs go to stderr only.</li>
+  <li><b>Handled:</b> <code>initialize</code>, <code>notifications/initialized</code> (ignored), <code>ping</code>, <code>tools/list</code>, <code>tools/call</code>. Any other method gets <code>-32601</code>.</li>
+  <li><b><code>initialize</code></b> answers with the client's <code>protocolVersion</code> when it's one we support (<code>2025-06-18</code>, <code>2025-03-26</code>, <code>2024-11-05</code>), otherwise the newest. It returns <code>capabilities: {"tools":{}}</code>, <code>serverInfo: {"name":"quickswitch","version":…}</code>, and short <code>instructions</code>: "Search first, then switch by id. Ids expire when the window or tab closes."</li>
+  <li>Each tool call is one pipe request (§4.2). A pipe failure becomes a tool result with <code>isError: true</code> and a message the model can pass on ("Agent access is off in QuickSwitch Settings → General"), not a JSON-RPC error.</li>
+</ul>
+
+<h3 id="mcp-tools">5.2 Tools</h3>
+<div class="doc-table"><table>
+<thead><tr><th>Tool</th><th>Input</th><th>Result</th><th>Annotations</th></tr></thead>
+<tbody>
+<tr><td><code>search</code></td><td><code>query</code> (string, optional), <code>kind</code> (enum: <code>all</code>, <code>window</code>, <code>explorer_tab</code>, <code>browser_tab</code>, <code>terminal_tab</code>, <code>folder</code>), <code>limit</code> (1–50)</td><td><code>structuredContent</code> <code>{items, complete}</code> with an <code>outputSchema</code>, plus the same rows as text</td><td><code>readOnlyHint: true</code>, <code>openWorldHint: false</code></td></tr>
+<tr><td><code>switch_to</code></td><td><code>id</code> (string, from <code>search</code>)</td><td><code>{foreground}</code> and a one-line message</td><td><code>readOnlyHint: false</code>, <code>destructiveHint: false</code>, <code>idempotentHint: true</code></td></tr>
+<tr><td><code>open</code></td><td><code>target</code> (folder or file path, or http/https URL)</td><td><code>{opened, path}</code></td><td><code>destructiveHint: false</code>, <code>idempotentHint: false</code>, <code>openWorldHint: true</code></td></tr>
+</tbody></table></div>
+<p>Each tool's description says what it's for in one or two sentences, for example "Find open windows, File Explorer tabs, browser tabs and Windows Terminal tabs on this PC by title". The model picks tools by these descriptions.</p>
+
+<h3 id="mcp-setup">5.3 Client setup (goes in the README)</h3>
+<pre><code>claude mcp add --scope user quickswitch -- "%LOCALAPPDATA%\Programs\QuickSwitch\qsctl.exe" mcp</code></pre>
+<pre><code>// Claude Desktop: claude_desktop_config.json
+{ "mcpServers": { "quickswitch": {
+    "command": "C:\\Users\\&lt;you&gt;\\AppData\\Local\\Programs\\QuickSwitch\\qsctl.exe",
+    "args": ["mcp"] } } }</code></pre>
+<p>Portable users point at <code>qsctl.exe</code> in their unzipped folder. Agents with a shell don't need MCP at all: <code>qsctl search --json</code> is enough.</p>
+
+<h2 id="steps">6. Implementation steps</h2>
+<p>Dev only. Releasing 0.5.0 is the operator's deploy, after §8.</p>
+<h3 id="s1">6.1 Step 1. Setting</h3>
+<p><code>src/config.rs</code>: <code>agent_access</code>. <code>src/ui/settings.rs</code>: the checkbox (§4.7), with <code>labelled_by</code> like the others. <code>app.rs::save_general</code>: start or stop the server.</p>
+<h3 id="s2">6.2 Step 2. Protocol module</h3>
+<p>New <code>src/agent/protocol.rs</code>: request and reply types with serde, error codes, id encoding and decoding (§4.3), the kind-word mapping through <code>parse_qualifier</code>, and the D5 extension check. Add <code>serde_json</code> to <code>Cargo.toml</code>. No Win32 or eframe imports, so it's testable on its own.</p>
+<h3 id="s3">6.3 Step 3. Pipe server</h3>
+<p>New <code>src/agent/server.rs</code>: pipe name, security descriptor, accept loop, line read with a size cap, reply wait with a timeout, quit event. Add <code>Win32_Security_Authorization</code> to the <code>windows</code> features. New <code>AppCommand::Agent { request, reply }</code> in <code>src/command.rs</code>.</p>
+<h3 id="s4">6.4 Step 4. App refactor and agent session</h3>
+<p><code>src/app.rs</code>: the shared ranking function (§4.4 step 1), <code>AgentSession</code>, generation routing in the <code>Tabs</code> and <code>BrowserTabs</code> handlers, and <code>activate_target</code> with agent pending handling (§4.5 step 1). Optionally move the agent part to <code>src/agent/session.rs</code> to keep <code>app.rs</code> from growing past 1,100 lines. The palette's behaviour must stay exactly the same: existing tests must pass unchanged.</p>
+<h3 id="s5">6.5 Step 5. Foreground fallback</h3>
+<p><code>src/os/windows.rs</code>: <code>activate</code> gets the <code>SendInput</code> retry (§4.5 step 3) and reports whether the window really came forward. The palette path also benefits.</p>
+<h3 id="s6">6.6 Step 6. Client and qsctl</h3>
+<p>New <code>src/agent/client.rs</code>: connect, check the server process, <code>AllowSetForegroundWindow</code>, start QuickSwitch if needed, one request. New <code>src/bin/qsctl.rs</code> (console subsystem): argument parsing (by hand, no clap), text and JSON output, exit codes (§4.6). <code>Cargo.toml</code>: a second <code>[[bin]]</code>.</p>
+<h3 id="s7">6.7 Step 7. MCP server</h3>
+<p>New <code>src/agent/mcp.rs</code>: the JSON-RPC loop over a <code>BufRead</code>/<code>Write</code> pair and a <code>Backend</code> trait (pipe client in production, fake in tests); tool schemas and descriptions (§5.2).</p>
+<h3 id="s8">6.8 Step 8. Packaging</h3>
+<p><code>scripts/package.ps1</code>: copy <code>qsctl.exe</code> into the portable zip and pass it to Inno Setup. <code>packaging/QuickSwitch.iss</code>: install <code>qsctl.exe</code> next to the app, plus an unchecked task "Add qsctl to PATH" (per-user <code>Path</code>, removed on uninstall). Check that CI (<code>.github/workflows/release.yml</code>) builds both binaries.</p>
+<h3 id="s9">6.9 Step 9. Docs and version</h3>
+<p>README: §2.4 (command line) gets <code>qsctl</code>; a new §2.6 "Agents and scripts" covers the setting, commands, MCP setup (§5.3), what agents can and can't do, and the privacy note. §6 code map gets <code>src/agent/</code>. <code>packaging/README.txt</code>: a short section. <code>CHANGELOG.md</code>: a 0.5.0 entry. <code>Cargo.toml</code>: version 0.5.0.</p>
+
+<h2 id="tests">7. Automated tests</h2>
+<ul>
+  <li><b><code>tests/agent_protocol.rs</code>:</b> request and reply round trips; id encode and decode for every <code>Target</code>, including paths with <code>:</code> and spaces; bad JSON, a missing <code>v</code> or an unknown <code>op</code> gives <code>bad_request</code>; kind words map to the same filter as the popup; the D5 check refuses <code>.exe .bat .ps1 .lnk .url</code> and accepts <code>.pdf .txt</code> and folders; only <code>http</code>/<code>https</code> URLs are accepted.</li>
+  <li><b><code>tests/agent_pipe.rs</code>:</b> starts the server in-process with a fake handler, then checks: a client gets the reply; an over-size line is refused; the server stops on quit; a second server with the same name fails (first-instance flag); the pipe's DACL holds only the user and SYSTEM.</li>
+  <li><b><code>tests/mcp.rs</code>:</b> drives the JSON-RPC loop with a fake backend. Checks: <code>initialize</code> version negotiation; <code>tools/list</code> matches the schemas; <code>tools/call</code> for each tool; backend errors become <code>isError</code> results; an unknown method gives <code>-32601</code>; notifications get no reply; nothing but JSON goes to stdout.</li>
+  <li><b>Ranking parity:</b> a test in <code>tests/matcher.rs</code> that the shared ranking function gives the same rows for a fixed snapshot as before the refactor.</li>
+  <li>Run <code>cargo fmt --check</code>, <code>cargo clippy --all-targets</code> and <code>cargo test</code>.</li>
+</ul>
+
+<h2 id="operator">8. Operator testing</h2>
+<p>The agent doesn't run the app (docs/tips/documentation-management §5). By hand, with a few windows, Explorer tabs, browser tabs and Terminal tabs open:</p>
+<ol>
+  <li>With agent access off, <code>qsctl status</code> says it's off and exits with 3. Tick the box and it says it's on, with no restart.</li>
+  <li>Run <code>qsctl search</code> with nothing typed, then <code>qsctl search mail</code>, <code>qsctl search --kind terminal</code> and <code>qsctl search "br: docs"</code>. Each gives the same rows the popup would show, while the popup stays hidden.</li>
+  <li>From a terminal, run <code>qsctl switch &lt;id&gt;</code> for a window, a minimized window, an Explorer tab and a browser tab. Each comes to the front. Note any <code>foreground:false</code> (the §4.5 fallback).</li>
+  <li>With the popup open, run a search from another terminal. The popup's results and selection don't change.</li>
+  <li>Run <code>qsctl open ~/Documents</code> and <code>qsctl open https://example.com</code>; both open. Run <code>qsctl open C:\Windows\notepad.exe</code>; it's refused.</li>
+  <li>Exit QuickSwitch, then run <code>qsctl search x</code>. It starts QuickSwitch and answers, unless <code>--no-start</code> is passed.</li>
+  <li>Add the MCP server to Claude Code (§5.3), then ask "switch to my Terminal tab running the build". It calls <code>search</code>, then <code>switch_to</code>.</li>
+  <li>Check that <code>recent</code> in <code>config.toml</code> is unchanged after the agent switches (D4).</li>
+  <li>Install the 0.5.0 setup over 0.4.3: <code>qsctl.exe</code> is installed, the PATH task works, and uninstall removes both.</li>
+</ol>
+
+<h2 id="risks">9. Risks and open points</h2>
+<ul>
+  <li><b>Foreground lock.</b> This is the main unknown. The <code>AllowSetForegroundWindow</code> plus <code>SendInput</code> combination usually works, but Windows may still refuse when the agent runs from a process the user hasn't touched recently (a scheduled job, Claude Desktop in the background). The result then says so honestly. Operator step 3 settles it.</li>
+  <li><b>Scan time.</b> Browser tab scans through UI Automation can take about a second with many windows. Partial replies (<code>complete:false</code>) keep agents from hanging; the 2&nbsp;s snapshot reuse cuts repeat cost.</li>
+  <li><b>Privacy.</b> With access on, window and tab titles go to whichever model the agent uses. The setting's note and the README say so. That's why it is off by default.</li>
+  <li><b>Second unsigned exe.</b> SmartScreen or Defender may warn about <code>qsctl.exe</code> separately. Same situation as <code>QuickSwitch.exe</code> today.</li>
+  <li><b>MCP version drift.</b> Supporting the three dated versions covers current clients. Newer ones negotiate down.</li>
+  <li><b>No demo.</b> The only screen change is one checkbox row (§4.7), so the plan has no interactive demo. Say if you want one anyway.</li>
+</ul>
+
+<h2 id="estimate">10. Estimate</h2>
+<div class="doc-table"><table>
+<thead><tr><th>Part</th><th>Steps</th><th>Agent time</th></tr></thead>
+<tbody>
+<tr><td>A: setting, protocol, pipe, app refactor, foreground, qsctl</td><td>1–6</td><td>about 20 min</td></tr>
+<tr><td>B: MCP server</td><td>7</td><td>about 5 min</td></tr>
+<tr><td>Tests, packaging, docs</td><td>8–9, §7</td><td>about 5–8 min</td></tr>
+<tr><td><b>Total</b></td><td></td><td><b>about 30 min</b></td></tr>
+</tbody></table></div>
+<p>Not included: the operator's checks in §8 (needs real windows, a terminal and an MCP client), and the 0.5.0 release, which the operator runs.</p>
+</main>
+</div>
+
+<script>
+/* light mode toggle */
+(function () {
+  const root = document.documentElement;
+  const btn = document.getElementById('docTheme');
+  btn.addEventListener('click', () => {
+    const toLight = root.dataset.theme !== 'light';
+    if (toLight) root.dataset.theme = 'light'; else delete root.dataset.theme;
+    btn.textContent = toLight ? 'Dark mode' : 'Light mode';
+  });
+})();
+
+/* table of contents: mark the section being read */
+(function () {
+  const links = Array.from(document.querySelectorAll('nav.doc-toc a'));
+  if (!links.length || !('IntersectionObserver' in window)) return;
+  const byId = new Map(links.map((a) => [a.getAttribute('href').slice(1), a]));
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach((e) => {
+      if (!e.isIntersecting) return;
+      const a = byId.get(e.target.id); if (!a) return;
+      links.forEach((l) => l.classList.toggle('is-current', l === a));
+    });
+  }, { rootMargin: '-15% 0px -75% 0px' });
+  byId.forEach((_, id) => { const el = document.getElementById(id); if (el) io.observe(el); });
+})();
+
+/* table of contents: hidden while a wide block is on screen */
+(function () {
+  const toc = document.querySelector('nav.doc-toc');
+  const wide = document.querySelectorAll('.doc-wide');
+  if (!toc || !wide.length || !('IntersectionObserver' in window)) return;
+  const onScreen = new Set();
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach((e) => { if (e.isIntersecting) onScreen.add(e.target); else onScreen.delete(e.target); });
+    toc.classList.toggle('is-hidden', onScreen.size > 0);
+  });
+  wide.forEach((el) => io.observe(el));
+})();
+</script>
+</body>
+</html>
