@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent worktree base commit</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #12161c; --fg: #e3e8ef; --muted: #9aa5b4; --line: #2a323d; --soft: #1a2029; --accent: #7aa2ff;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #ffffff; --fg: #1c2430; --muted: #5b6675; --line: #dfe4ea; --soft: #f4f6f9; --accent: #1d4ed8;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Arial, sans-serif; }
+
+.doc-top { max-width: 1400px; margin: 0 auto; padding: 14px 20px 0; display: flex; justify-content: flex-end; }
+#docTheme { font: inherit; font-size: 14px; padding: 4px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg); color: var(--muted); cursor: pointer; }
+#docTheme:hover { color: var(--fg); }
+
+.doc-layout { --toc-w: 220px; --toc-gap: 44px; max-width: 1400px; margin: 0 auto; padding: 14px 20px 120px; display: grid; grid-template-columns: var(--toc-w) minmax(0, 1fr); gap: var(--toc-gap); }
+nav.doc-toc { position: sticky; top: 24px; align-self: start; max-height: calc(100vh - 48px); overflow: auto; font-size: 14px; }
+nav.doc-toc p { font-weight: 600; margin: 0 0 10px; }
+nav.doc-toc a { display: block; padding: 5px 10px; color: var(--muted); text-decoration: none; border-left: 2px solid var(--line); }
+nav.doc-toc a:hover { color: var(--fg); }
+nav.doc-toc a.is-current { color: var(--accent); border-left-color: var(--accent); font-weight: 600; }
+@media (max-width: 900px) {
+  .doc-layout { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  nav.doc-toc { position: static; max-height: none; }
+}
+
+main { min-width: 0; }
+main > * { max-width: 780px; }
+h1 { font-size: 28px; line-height: 1.25; margin: 0 0 6px; }
+h2 { font-size: 22px; margin: 44px 0 10px; scroll-margin-top: 16px; }
+h3 { font-size: 17px; margin: 24px 0 6px; }
+ul, ol { padding-left: 22px; } li { margin: 4px 0; }
+a { color: var(--accent); }
+code { font: 14px/1.4 Consolas, "Cascadia Mono", ui-monospace, monospace; background: var(--soft); padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--soft); padding: 10px 12px; border-radius: 6px; font: 13.5px/1.5 Consolas, "Cascadia Mono", ui-monospace, monospace; overflow-x: auto; margin: 10px 0 14px; }
+pre code { background: none; padding: 0; font: inherit; }
+
+.doc-table { overflow: visible; }
+table { border-collapse: collapse; width: 100%; margin: 10px 0 14px; font-size: 15px; }
+th, td { text-align: left; vertical-align: top; padding: 7px 10px; border-bottom: 1px solid var(--line); }
+th { color: var(--muted); font-weight: 600; }
+.doc-table thead th { position: sticky; top: 0; z-index: 2; background: var(--soft); box-shadow: 0 1px 0 var(--line); border-bottom: 0; }
+@media (max-width: 900px) {
+  .doc-table { max-height: 80vh; overflow: auto; }
+}
+</style>
+</head>
+<body>
+<div class="doc-top"><button type="button" id="docTheme">Light mode</button></div>
+<div class="doc-layout">
+<nav class="doc-toc" aria-label="Contents">
+  <p>Contents</p>
+  <a href="#summary">1. Summary</a>
+  <a href="#what">2. What happens</a>
+  <a href="#check">3. How to check a worktree's base</a>
+  <a href="#prevent">4. How to prevent it</a>
+  <a href="#related">5. Related worktree quirks</a>
+</nav>
+<main>
+<h1>Agent worktree base commit</h1>
+
+<h2 id="summary">1. Summary</h2>
+<ul>
+  <li>A subagent started with <code>isolation: "worktree"</code> gets its own git worktree, but that worktree is <strong>not guaranteed to start from your local <code>HEAD</code></strong>. It can start from <code>origin/&lt;default branch&gt;</code> instead.</li>
+  <li>When your local branch is ahead of the remote, such an agent works on old code and reads old instruction files (<code>CLAUDE.md</code>, <code>AGENTS.md</code>, docs), without saying so.</li>
+  <li>Make step 0 of every worktree agent's prompt a fast-forward to the commit you expect (§4). Or create the worktree yourself from that commit.</li>
+  <li>Reusing a worktree you already have, fast-forwarded, also skips a fresh dependency install.</li>
+</ul>
+
+<h2 id="what">2. What happens</h2>
+<ul>
+  <li>The Agent tool creates the worktree under <code>.claude/worktrees/agent-&lt;id&gt;</code>, on a branch named <code>worktree-agent-&lt;id&gt;</code>.</li>
+  <li>In one session (2026-10-23), the local branch was ahead of <code>origin/main</code>. Some agents launched in the same session got worktrees on <code>origin/main</code>; others got local <code>HEAD</code>. Nothing in the launch result said which.</li>
+  <li>The agents on <code>origin/main</code> read instruction files and docs that had since changed, and worked on code without the newer commits. The time went on spotting this and telling each of them to fast-forward before carrying on.</li>
+</ul>
+
+<h2 id="check">3. How to check a worktree's base</h2>
+<ol>
+  <li>Note the commit the agent should start from, in your own checkout:
+<pre><code>git rev-parse HEAD</code></pre></li>
+  <li>Check that the agent's worktree contains it (exit code 0 means yes):
+<pre><code>git -C .claude/worktrees/agent-&lt;id&gt; merge-base --is-ancestor &lt;sha&gt; HEAD</code></pre></li>
+  <li>Or list every worktree with the commit it is on:
+<pre><code>git worktree list</code></pre></li>
+</ol>
+
+<h2 id="prevent">4. How to prevent it</h2>
+<h3>4.1 Fast-forward as step 0</h3>
+<ol>
+  <li>Take the expected commit: <code>git rev-parse HEAD</code>.</li>
+  <li>Put this first in the prompt of every agent started with <code>isolation: "worktree"</code>:
+<pre><code>Step 0: run `git merge --ff-only &lt;sha&gt;` in your worktree before anything else.
+If it is not a fast-forward, stop and report; do not merge or rebase.</code></pre></li>
+  <li>Ask the agent to report the commit it started from, so its report can be checked against §3.</li>
+</ol>
+<h3>4.2 Or create the worktree yourself</h3>
+<ol>
+  <li>Create it from the exact commit:
+<pre><code>git worktree add .claude/worktrees/&lt;name&gt; -b &lt;branch&gt; &lt;sha&gt;</code></pre></li>
+  <li>Start the agent without <code>isolation</code> and give it the worktree's absolute path as its only working directory.</li>
+</ol>
+<h3>4.3 Reuse a worktree for follow-up work</h3>
+<ol>
+  <li>Once an agent's branch is merged, keep its worktree instead of asking for a new one.</li>
+  <li>For the next task, fast-forward it to the current branch (<code>git -C &lt;worktree&gt; merge --ff-only &lt;sha&gt;</code>) and give the next agent its path.</li>
+  <li>Its dependencies are already installed, which saves a fresh <code>npm install</code> (or equivalent) per agent.</li>
+</ol>
+
+<h2 id="related">5. Related worktree quirks</h2>
+<p>Seen in the same session. Each applies only where the project uses the tool named.</p>
+<div class="doc-table">
+<table>
+  <thead><tr><th>Applies to</th><th>Symptom</th><th>Fix</th></tr></thead>
+  <tbody>
+    <tr><td>Any project</td><td>A new worktree has no ignored files: no <code>node_modules</code>, no <code>.env</code>, no local database.</td><td>Install dependencies and recreate local files in each worktree. Copy <code>.env</code> from <code>.env.example</code>. Don't share these with the main checkout through copies or links unless the project says that is safe.</td></tr>
+    <tr><td>Nx monorepos</td><td>In a worktree nested inside the repo (<code>.claude/worktrees/*</code>), <code>nx build</code> fails inside Nx Cloud with an <code>EISDIR</code> error on <code>lstat 'C:'</code>.</td><td>Run Nx with <code>NX_NO_CLOUD=true NX_DAEMON=false</code>.</td></tr>
+    <tr><td>Prisma</td><td><code>prisma migrate deploy</code> fails in a new worktree: the schema folder's <code>.env</code>, which holds <code>DATABASE_URL</code>, is missing.</td><td>Copy it from <code>.env.example</code>. It is gitignored, so a new worktree never has it.</td></tr>
+    <tr><td>Claude Code on Windows</td><td><code>git worktree remove</code> for agent worktrees can be blocked by the permission classifier.</td><td>Leave them and tell the user. Once the branch is merged, they can be removed by hand with <code>git worktree remove --force &lt;path&gt;</code> and <code>git branch -D &lt;branch&gt;</code>.</td></tr>
+  </tbody>
+</table>
+</div>
+</main>
+</div>
+
+<script>
+/* light mode toggle */
+(function () {
+  const root = document.documentElement;
+  const btn = document.getElementById('docTheme');
+  btn.addEventListener('click', () => {
+    const toLight = root.dataset.theme !== 'light';
+    if (toLight) root.dataset.theme = 'light'; else delete root.dataset.theme;
+    btn.textContent = toLight ? 'Dark mode' : 'Light mode';
+  });
+})();
+
+/* table of contents: mark the section being read */
+(function () {
+  const links = Array.from(document.querySelectorAll('nav.doc-toc a'));
+  if (!links.length || !('IntersectionObserver' in window)) return;
+  const byId = new Map(links.map((a) => [a.getAttribute('href').slice(1), a]));
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach((e) => {
+      if (!e.isIntersecting) return;
+      const a = byId.get(e.target.id); if (!a) return;
+      links.forEach((l) => l.classList.toggle('is-current', l === a));
+    });
+  }, { rootMargin: '-15% 0px -75% 0px' });
+  byId.forEach((_, id) => { const el = document.getElementById(id); if (el) io.observe(el); });
+})();
+</script>
+</body>
+</html>

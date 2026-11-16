@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deploy build guideline</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #12161c; --fg: #e3e8ef; --muted: #9aa5b4; --line: #2a323d; --soft: #1a2029; --accent: #7aa2ff;
+  --note: #1b2433; --note-line: #2f4a7a; --warn: #2d2117; --warn-line: #8a5a1f; --good: #16261d; --good-line: #2f6b45;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #ffffff; --fg: #1c2430; --muted: #5b6675; --line: #dfe4ea; --soft: #f4f6f9; --accent: #1d4ed8;
+  --note: #eef3fd; --note-line: #b8cbf2; --warn: #fdf4e7; --warn-line: #e8c48f; --good: #ecf7f0; --good-line: #a9d8b9;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Arial, sans-serif; }
+
+.doc-top { max-width: 1400px; margin: 0 auto; padding: 14px 20px 0; display: flex; justify-content: flex-end; }
+#docTheme { font: inherit; font-size: 14px; padding: 4px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg); color: var(--muted); cursor: pointer; }
+#docTheme:hover { color: var(--fg); }
+
+.doc-layout { --toc-w: 220px; --toc-gap: 44px; max-width: 1400px; margin: 0 auto; padding: 14px 20px 120px; display: grid; grid-template-columns: var(--toc-w) minmax(0, 1fr); gap: var(--toc-gap); }
+nav.doc-toc { position: sticky; top: 24px; align-self: start; max-height: calc(100vh - 48px); overflow: auto; font-size: 14px; }
+nav.doc-toc p { font-weight: 600; margin: 0 0 10px; }
+nav.doc-toc a { display: block; padding: 5px 10px; color: var(--muted); text-decoration: none; border-left: 2px solid var(--line); }
+nav.doc-toc a:hover { color: var(--fg); }
+nav.doc-toc a.is-current { color: var(--accent); border-left-color: var(--accent); font-weight: 600; }
+@media (max-width: 900px) {
+  .doc-layout { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  nav.doc-toc { position: static; max-height: none; }
+}
+
+main { min-width: 0; }
+main > * { max-width: 780px; }
+h1 { font-size: 28px; line-height: 1.25; margin: 0 0 6px; }
+h2 { font-size: 22px; margin: 44px 0 10px; scroll-margin-top: 16px; }
+h3 { font-size: 17px; margin: 24px 0 6px; }
+ul, ol { padding-left: 22px; } li { margin: 4px 0; }
+a { color: var(--accent); }
+code { font: 14px/1.4 Consolas, "Cascadia Mono", ui-monospace, monospace; background: var(--soft); padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--soft); padding: 10px 12px; border-radius: 6px; font: 13.5px/1.5 Consolas, "Cascadia Mono", ui-monospace, monospace; overflow-x: auto; margin: 10px 0 14px; }
+pre code { background: none; padding: 0; font: inherit; }
+
+.where { display: inline-block; margin: 6px 0 -4px; padding: 1px 10px; border-radius: 999px; background: var(--soft); border: 1px solid var(--line); color: var(--muted); font-size: 13px; font-weight: 600; }
+.note { margin: 16px 0; padding: 12px 14px; border: 1px solid var(--note-line); border-radius: 8px; background: var(--note); }
+.note.warn { border-color: var(--warn-line); background: var(--warn); }
+.note.gate { border-color: var(--good-line); background: var(--good); }
+
+.doc-table { overflow: visible; }
+.doc-table table { width: 100%; border-collapse: collapse; font-size: 15px; }
+.doc-table th, .doc-table td { text-align: left; vertical-align: top; padding: 7px 10px; border-bottom: 1px solid var(--line); }
+.doc-table thead th { position: sticky; top: 0; z-index: 2; background: var(--soft); box-shadow: 0 1px 0 var(--line); }
+@media (max-width: 900px) { .doc-table { max-height: 80vh; overflow: auto; } }
+</style>
+</head>
+<body>
+<div class="doc-top"><button type="button" id="docTheme">Light mode</button></div>
+<div class="doc-layout">
+<nav class="doc-toc" aria-label="Contents">
+  <p>Contents</p>
+  <a href="#summary">1. Summary</a>
+  <a href="#lock">2. One lock file: the repository's</a>
+  <a href="#node">3. The Node image</a>
+  <a href="#dev">4. Close to development</a>
+  <a href="#image">5. Image name and tag</a>
+  <a href="#python">6. Python</a>
+  <a href="#failures">7. Known failures</a>
+  <a href="#adopt">8. Adopting it in a repository</a>
+</nav>
+<main>
+<h1>Deploy build guideline</h1>
+<p>How a repository builds the Docker image its deploys run: the same pinned packages as development, built the same way every time. Copy it into a project's <code>docs/tips/</code> and follow it in the Dockerfile.</p>
+
+<h2 id="summary">1. Summary</h2>
+<ul>
+  <li>The image installs from the repository's own lock file (<code>package-lock.json</code>) with <code>npm ci</code>, never from a lock file a build tool generates.</li>
+  <li>The image uses the Node (or Python) version development uses, on Linux, with the dependencies installed inside the image.</li>
+  <li>The image name in the compose file is the one the workflow builds and pushes.</li>
+</ul>
+
+<h2 id="lock">2. One lock file: the repository's</h2>
+<ul>
+  <li><strong>The rule.</strong> Every <code>npm ci</code> in the Dockerfile reads the repository's root <code>package.json</code> and <code>package-lock.json</code>, the files development installs from. The image then runs exactly the package versions that were tested.</li>
+  <li><strong>Not a generated one.</strong> Some build tools write a trimmed <code>package.json</code> and <code>package-lock.json</code> next to their output (Nx with <code>generatePackageJson: true</code>, under <code>dist/apps/&lt;app&gt;/</code>). That lock file can miss packages, and <code>npm ci</code> then refuses to install ("not in sync … Missing: content-type@1.0.5 from lock file"). The option can stay on, but nothing installs from its output.</li>
+  <li><strong>The cost.</strong> The image holds the runtime dependencies of every app in the repository, not only the one it runs: a few more megabytes, in exchange for one tested set of versions.</li>
+  <li><strong>Commit the lock file.</strong> <code>package-lock.json</code> is in git and updated with every dependency change. <code>npm ci</code> fails when it doesn't match <code>package.json</code>, which is the point.</li>
+</ul>
+
+<h2 id="node">3. The Node image</h2>
+<p>Three stages: build with all dependencies, install the production dependencies from the same root files, then the runtime image with only what runs.</p>
+<pre><code># 1. Build: all dependencies, from the repository's lock file.
+FROM node:24-bookworm-slim AS build
+WORKDIR /repo
+ENV CI=true
+COPY package.json package-lock.json ./
+# With npm workspaces, also copy each workspace's package.json before npm ci (§3.1).
+RUN npm ci --no-audit --no-fund
+COPY . .
+RUN npm run build
+
+# 2. Production dependencies only, from the same root files.
+FROM node:24-bookworm-slim AS deps
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --no-audit --no-fund &amp;&amp; npm cache clean --force
+
+# 3. Runtime: production dependencies and the build output.
+FROM node:24-bookworm-slim
+ENV NODE_ENV=production PORT=3000
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=build /repo/dist/ ./
+USER node
+EXPOSE 3000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:3000/api/health').then(r=&gt;process.exit(r.ok?0:1)).catch(()=&gt;process.exit(1))"
+CMD ["node", "main.js"]</code></pre>
+<h3>3.1 Rules</h3>
+<ul>
+  <li><strong>Workspaces.</strong> With npm workspaces, stage 2 also needs each workspace's <code>package.json</code>. Simpler: drop stage 2, run <code>npm prune --omit=dev --no-audit --no-fund</code> at the end of stage 1 and copy its <code>node_modules</code>. Both install from the root lock file.</li>
+  <li><strong>Runtime packages are dependencies.</strong> Anything the server imports at run time is in <code>dependencies</code>, not <code>devDependencies</code>, or the container fails at start with "Cannot find module".</li>
+  <li><strong>Install scripts.</strong> A <code>prepare</code> script calling a dev tool (husky, for example) fails under <code>--omit=dev</code>. Make it tolerate the tool's absence, or add <code>--ignore-scripts</code> when no runtime package needs its install script.</li>
+  <li><strong>A health route.</strong> The app answers <code>/api/health</code> (or its equivalent) on its port, so the HEALTHCHECK and the deploy can tell a running app from a crashed one.</li>
+</ul>
+
+<h2 id="dev">4. Close to development</h2>
+<p>The same lock file gives the same package versions. The remaining differences between development and the image come from these, so keep them aligned:</p>
+<div class="doc-table"><table>
+  <thead><tr><th>What</th><th>Rule</th></tr></thead>
+  <tbody>
+    <tr><td>Node version</td><td>The image's major version is development's: <code>node:24-…</code> with <code>"engines": { "node": "&gt;=24 &lt;25" }</code> in <code>package.json</code> (or <code>.nvmrc</code>). Change both together.</td></tr>
+    <tr><td>Operating system</td><td>The image is Linux, where file names are case-sensitive: an import of <code>./Header</code> for <code>header.ts</code> works on Windows and fails in the image.</td></tr>
+    <tr><td>Native packages</td><td>Installed inside the image, never copied from the PC. <code>.dockerignore</code> lists <code>node_modules</code>, <code>dist</code> and every <code>.env*</code> file.</td></tr>
+    <tr><td>Build mode</td><td>The image runs the production build, not the dev server. Run the production build in development too before a release.</td></tr>
+    <tr><td>Settings</td><td>Come from the environment file on the server (<code>api.env</code>), never baked into the image. <code>.env.example</code> lists every name.</td></tr>
+  </tbody>
+</table></div>
+
+<h2 id="image">5. Image name and tag</h2>
+<ul>
+  <li>The compose file's <code>image:</code> is <code>ghcr.io/&lt;owner&gt;/&lt;name&gt;:${IMAGE_TAG}</code>, and the workflow builds and pushes exactly that name. When DevDock generates the workflow, the container's Image field in the environment holds the same name.</li>
+  <li>The tag is the full commit SHA, never <code>latest</code>, so a release is immutable and a rollback is a tag change.</li>
+  <li>Staging and live use the same image name, so a SHA built once can be deployed to both.</li>
+</ul>
+
+<h2 id="python">6. Python</h2>
+<ul>
+  <li>Install from a pinned file: <code>requirements.txt</code> made with <code>pip-compile</code> (or <code>uv.lock</code>), exact versions, committed. Not a list of loose names.</li>
+  <li>The image's Python minor version is development's (<code>python:3.12-slim</code> with 3.12 locally).</li>
+  <li>Set <code>PYTHONDONTWRITEBYTECODE=1</code>, <code>PYTHONUNBUFFERED=1</code> and <code>PIP_NO_CACHE_DIR=1</code>, and run as a non-root user.</li>
+</ul>
+
+<h2 id="failures">7. Known failures</h2>
+<div class="doc-table"><table>
+  <thead><tr><th>Seen</th><th>Cause</th><th>Fix</th></tr></thead>
+  <tbody>
+    <tr><td><code>npm ci</code>: "not in sync … Missing: … from lock file"</td><td>Installing from a generated lock file, or <code>package-lock.json</code> not updated after a dependency change.</td><td>§2: install from the root files. Run <code>npm install</code> locally and commit the lock file.</td></tr>
+    <tr><td>Deploy: "failed to resolve reference … not found"</td><td>The server pulls a different image name than the workflow pushed, or a SHA that was never built.</td><td>§5: one name in the compose file, the workflow and DevDock's Image field.</td></tr>
+    <tr><td>Container exits: "Cannot find module"</td><td>A runtime package in <code>devDependencies</code>, or a file name with the wrong case.</td><td>§3.1, §4.</td></tr>
+    <tr><td>Install fails in a <code>prepare</code> script</td><td>The script calls a dev tool under <code>--omit=dev</code>.</td><td>§3.1.</td></tr>
+  </tbody>
+</table></div>
+
+<h2 id="adopt">8. Adopting it in a repository</h2>
+<ol class="steps">
+  <li>Copy this file into the repository's <code>docs/tips/</code>.</li>
+  <li>Check the Dockerfile against §2–§4, and the compose file and workflow against §5.</li>
+  <li>Add a line to the repository's <code>CLAUDE.md</code>: "The Dockerfile follows <code>docs/tips/deploy-build-guideline.html</code>."</li>
+</ol>
+</main>
+</div>
+
+<script>
+/* light mode toggle */
+(function () {
+  const root = document.documentElement;
+  const btn = document.getElementById('docTheme');
+  btn.addEventListener('click', () => {
+    const toLight = root.dataset.theme !== 'light';
+    if (toLight) root.dataset.theme = 'light'; else delete root.dataset.theme;
+    btn.textContent = toLight ? 'Dark mode' : 'Light mode';
+  });
+})();
+
+/* table of contents: mark the section being read */
+(function () {
+  const links = Array.from(document.querySelectorAll('nav.doc-toc a'));
+  if (!links.length || !('IntersectionObserver' in window)) return;
+  const byId = new Map(links.map((a) => [a.getAttribute('href').slice(1), a]));
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach((e) => {
+      if (!e.isIntersecting) return;
+      const a = byId.get(e.target.id); if (!a) return;
+      links.forEach((l) => l.classList.toggle('is-current', l === a));
+    });
+  }, { rootMargin: '-15% 0px -75% 0px' });
+  byId.forEach((_, id) => { const el = document.getElementById(id); if (el) io.observe(el); });
+})();
+</script>
+</body>
+</html>

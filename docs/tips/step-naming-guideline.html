@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Step naming guideline</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #12161c; --fg: #e3e8ef; --muted: #9aa5b4; --line: #2a323d; --soft: #1a2029; --accent: #7aa2ff;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #ffffff; --fg: #1c2430; --muted: #5b6675; --line: #dfe4ea; --soft: #f4f6f9; --accent: #1d4ed8;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Arial, sans-serif; }
+
+.doc-top { max-width: 1400px; margin: 0 auto; padding: 14px 20px 0; display: flex; justify-content: flex-end; }
+#docTheme { font: inherit; font-size: 14px; padding: 4px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg); color: var(--muted); cursor: pointer; }
+#docTheme:hover { color: var(--fg); }
+
+.doc-layout { --toc-w: 220px; --toc-gap: 44px; max-width: 1400px; margin: 0 auto; padding: 14px 20px 120px; display: grid; grid-template-columns: var(--toc-w) minmax(0, 1fr); gap: var(--toc-gap); }
+nav.doc-toc { position: sticky; top: 24px; align-self: start; max-height: calc(100vh - 48px); overflow: auto; font-size: 14px; }
+nav.doc-toc p { font-weight: 600; margin: 0 0 10px; }
+nav.doc-toc a { display: block; padding: 5px 10px; color: var(--muted); text-decoration: none; border-left: 2px solid var(--line); }
+nav.doc-toc a:hover { color: var(--fg); }
+nav.doc-toc a.is-current { color: var(--accent); border-left-color: var(--accent); font-weight: 600; }
+@media (max-width: 900px) {
+  .doc-layout { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  nav.doc-toc { position: static; max-height: none; }
+}
+
+main { min-width: 0; }
+main > * { max-width: 780px; }
+h1 { font-size: 28px; line-height: 1.25; margin: 0 0 6px; }
+h2 { font-size: 22px; margin: 44px 0 10px; scroll-margin-top: 16px; }
+h3 { font-size: 17px; margin: 24px 0 6px; }
+ul, ol { padding-left: 22px; } li { margin: 4px 0; }
+a { color: var(--accent); }
+code { font: 14px/1.4 Consolas, "Cascadia Mono", ui-monospace, monospace; background: var(--soft); padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--soft); padding: 10px 12px; border-radius: 6px; font: 13.5px/1.5 Consolas, "Cascadia Mono", ui-monospace, monospace; overflow-x: auto; margin: 10px 0 14px; }
+pre code { background: none; padding: 0; font: inherit; }
+table { border-collapse: collapse; width: 100%; margin: 10px 0 14px; font-size: 15px; }
+th, td { text-align: left; vertical-align: top; padding: 7px 10px; border-bottom: 1px solid var(--line); }
+th { color: var(--muted); font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="doc-top"><button type="button" id="docTheme">Light mode</button></div>
+<div class="doc-layout">
+<nav class="doc-toc" aria-label="Contents">
+  <p>Contents</p>
+  <a href="#summary">1. Summary</a>
+  <a href="#why">2. Why name steps</a>
+  <a href="#how">3. How to write a step name</a>
+  <a href="#format">4. Where the name goes</a>
+  <a href="#examples">5. Examples</a>
+  <a href="#check">6. Checking a guide</a>
+</nav>
+<main>
+<h1>Step naming guideline</h1>
+
+<h2 id="summary">1. Summary</h2>
+<ul>
+  <li>Every step in a guide, runbook or procedure starts with a short name that says what the step does, such as <strong>Set GitHub secrets</strong> or <strong>Create the site folder</strong>. The details come after the name.</li>
+  <li>A name is a verb and the thing it acts on, in two to five plain words.</li>
+  <li>The name sits in bold at the start of the step, after the step number: <strong>13. Set GitHub secrets.</strong> In the repository's Actions secrets, add…</li>
+  <li>Read in order, the names alone tell the story of the whole procedure.</li>
+</ul>
+
+<h2 id="why">2. Why name steps</h2>
+<p>A bare step tells the reader what to type or click, but not what it's for. A name gives each step a purpose the reader can hold on to.</p>
+<ul>
+  <li><b>Understanding.</b> The reader knows what a step achieves before reading how, so the details make sense as they come.</li>
+  <li><b>Memory.</b> "Set GitHub secrets, then put the files on the server" is easy to remember. A list of commands isn't. After a few runs, the names are the procedure.</li>
+  <li><b>Overview.</b> Skimming the bold names gives the whole process at a glance, and shows how far along you are.</li>
+  <li><b>Talking about it.</b> "Step 13, Set GitHub secrets" can be referred to and searched for. "Step 13" alone means nothing once steps are added or moved.</li>
+  <li><b>Fixing problems.</b> When something fails, the name says which job didn't get done, which points at what to check.</li>
+</ul>
+
+<h2 id="how">3. How to write a step name</h2>
+<ol>
+  <li><b>Start with a verb.</b> Use the command form: <em>Set</em>, <em>Create</em>, <em>Copy</em>, <em>Point</em>, <em>Run</em>, <em>Check</em>, <em>Remove</em>.</li>
+  <li><b>Name the thing it acts on.</b> <em>Set GitHub secrets</em>, not <em>Set secrets</em>, when there are several kinds of secret in the guide.</li>
+  <li><b>Say what it achieves, not how.</b> <em>Make the secret files private</em>, not <em>Run chmod 600</em>. Commands, paths and values belong in the details.</li>
+  <li><b>Keep it short.</b> Two to five words. If it needs more, the step is probably two steps.</li>
+  <li><b>Use plain words.</b> Use the words the reader would use. A file or setting name is fine when it's what the reader looks for, such as <em>Fill in api.env</em>.</li>
+  <li><b>Make it unique.</b> No two steps in one guide share a name. If two steps look alike, name what differs: <em>Restart the API with the admin URL</em> and <em>Restart the API without it</em>.</li>
+  <li><b>Reuse verbs across guides.</b> The same action gets the same verb everywhere, so <em>Check</em> always means "look, change nothing".</li>
+</ol>
+
+<h2 id="format">4. Where the name goes</h2>
+<ul>
+  <li>In bold at the start of the step, after its visible number (<a href="html-documentation-guideline.html">HTML documentation guideline</a>, §3), and ending with a full stop.</li>
+  <li>The details follow on the same line or in a nested list.</li>
+  <li>Sections are named the same way, by what they achieve: <em>3. Set up GitHub</em>, <em>4. Put the files on the server</em>.</li>
+  <li>For a long guide, an optional "At a glance" list near the top gives just the step names in order.</li>
+</ul>
+<pre><code>&lt;ol class="steps" start="13"&gt;
+  &lt;li&gt;&lt;strong&gt;Set GitHub secrets.&lt;/strong&gt; In the repository's Actions secrets, add
+    &lt;code&gt;VPS_IP&lt;/code&gt;, &lt;code&gt;VPS_USER&lt;/code&gt;, …&lt;/li&gt;
+  &lt;li&gt;&lt;strong&gt;Put the workflows on master.&lt;/strong&gt; The Run workflow button only
+    appears once they are.&lt;/li&gt;
+&lt;/ol&gt;</code></pre>
+
+<h2 id="examples">5. Examples</h2>
+<p>From a deploy guide:</p>
+<table>
+  <tr><th>Without a name</th><th>With a name</th></tr>
+  <tr><td>Create the folder <code>/opt/myapp</code> on the VPS.</td><td><strong>Create the site folder.</strong> Create <code>/opt/myapp</code> on the VPS.</td></tr>
+  <tr><td>Make <code>api.env</code> and <code>.deploy.env</code> private (mode 600), and make <code>deploy</code> the owner.</td><td><strong>Lock down the secret files.</strong> Make <code>api.env</code> and <code>.deploy.env</code> private (mode 600), and make <code>deploy</code> the owner.</td></tr>
+  <tr><td>Set <code>DATABASE_URL</code> to the Supabase pooler address as <code>app_user</code>, with its password.</td><td><strong>Set the Supabase password in api.env.</strong> Set <code>DATABASE_URL</code> to the pooler address as <code>app_user</code>, with its password.</td></tr>
+  <tr><td>In GitHub, go to Actions → Build and deploy → Run workflow.</td><td><strong>Start the first release.</strong> In GitHub, go to Actions → Build and deploy → Run workflow.</td></tr>
+  <tr><td>Remove <code>DATABASE_ADMIN_URL</code> from <code>api.env</code> and restart.</td><td><strong>Remove the admin password.</strong> Delete <code>DATABASE_ADMIN_URL</code> from <code>api.env</code> and restart.</td></tr>
+</table>
+<p>Read alone, the names on the right tell the story: create the site folder, lock down the secret files, set the Supabase password, start the first release, remove the admin password.</p>
+
+<h2 id="check">6. Checking a guide</h2>
+<ol>
+  <li><b>Read only the names.</b> In order, they should describe the whole procedure without the details.</li>
+  <li><b>Match name and step.</b> Each name says what its step does, and nothing the step doesn't do.</li>
+  <li><b>Look for repeats.</b> No two steps share a name.</li>
+  <li><b>Look for commands.</b> No name is just a command or a path.</li>
+</ol>
+</main>
+</div>
+
+<script>
+/* light mode toggle */
+(function () {
+  const root = document.documentElement;
+  const btn = document.getElementById('docTheme');
+  btn.addEventListener('click', () => {
+    const toLight = root.dataset.theme !== 'light';
+    if (toLight) root.dataset.theme = 'light'; else delete root.dataset.theme;
+    btn.textContent = toLight ? 'Dark mode' : 'Light mode';
+  });
+})();
+
+/* table of contents: mark the section being read */
+(function () {
+  const links = Array.from(document.querySelectorAll('nav.doc-toc a'));
+  if (!links.length || !('IntersectionObserver' in window)) return;
+  const byId = new Map(links.map((a) => [a.getAttribute('href').slice(1), a]));
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach((e) => {
+      if (!e.isIntersecting) return;
+      const a = byId.get(e.target.id); if (!a) return;
+      links.forEach((l) => l.classList.toggle('is-current', l === a));
+    });
+  }, { rootMargin: '-15% 0px -75% 0px' });
+  byId.forEach((_, id) => { const el = document.getElementById(id); if (el) io.observe(el); });
+})();
+</script>
+</body>
+</html>

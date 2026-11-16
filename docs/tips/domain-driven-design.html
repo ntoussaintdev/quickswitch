@@ -1,0 +1,869 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Domain-driven design, the way we do it</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #12161c;
+        --fg: #e3e8ef;
+        --muted: #9aa5b4;
+        --line: #2a323d;
+        --soft: #1a2029;
+        --accent: #7aa2ff;
+      }
+      :root[data-theme="light"] {
+        color-scheme: light;
+        --bg: #ffffff;
+        --fg: #1c2430;
+        --muted: #5b6675;
+        --line: #dfe4ea;
+        --soft: #f4f6f9;
+        --accent: #1d4ed8;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font:
+          16px/1.6 system-ui,
+          -apple-system,
+          "Segoe UI",
+          Arial,
+          sans-serif;
+      }
+      .doc-top {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 14px 20px 0;
+        display: flex;
+        justify-content: flex-end;
+      }
+      #docTheme {
+        font: inherit;
+        font-size: 14px;
+        padding: 4px 12px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: var(--bg);
+        color: var(--muted);
+        cursor: pointer;
+      }
+      #docTheme:hover {
+        color: var(--fg);
+      }
+      .doc-layout {
+        --toc-w: 220px;
+        --toc-gap: 44px;
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 14px 20px 120px;
+        display: grid;
+        grid-template-columns: var(--toc-w) minmax(0, 1fr);
+        gap: var(--toc-gap);
+      }
+      nav.doc-toc {
+        position: sticky;
+        top: 24px;
+        align-self: start;
+        max-height: calc(100vh - 48px);
+        overflow: auto;
+        font-size: 14px;
+      }
+      nav.doc-toc p {
+        font-weight: 600;
+        margin: 0 0 10px;
+      }
+      nav.doc-toc a {
+        display: block;
+        padding: 5px 10px;
+        color: var(--muted);
+        text-decoration: none;
+        border-left: 2px solid var(--line);
+      }
+      nav.doc-toc a:hover {
+        color: var(--fg);
+      }
+      nav.doc-toc a.is-current {
+        color: var(--accent);
+        border-left-color: var(--accent);
+        font-weight: 600;
+      }
+      @media (max-width: 900px) {
+        .doc-layout {
+          grid-template-columns: minmax(0, 1fr);
+          gap: 8px;
+        }
+        nav.doc-toc {
+          position: static;
+          max-height: none;
+        }
+      }
+      main {
+        min-width: 0;
+      }
+      main > * {
+        max-width: 780px;
+      }
+      h1 {
+        font-size: 28px;
+        line-height: 1.25;
+        margin: 0 0 6px;
+      }
+      h2 {
+        font-size: 22px;
+        margin: 44px 0 10px;
+        scroll-margin-top: 16px;
+      }
+      h3 {
+        font-size: 17px;
+        margin: 24px 0 6px;
+      }
+      ul,
+      ol {
+        padding-left: 22px;
+      }
+      li {
+        margin: 4px 0;
+      }
+      a {
+        color: var(--accent);
+      }
+      .status {
+        color: var(--muted);
+        font-size: 14px;
+        margin: 0 0 18px;
+      }
+      code {
+        font:
+          14px/1.4 Consolas,
+          "Cascadia Mono",
+          ui-monospace,
+          monospace;
+        background: var(--soft);
+        padding: 1px 5px;
+        border-radius: 4px;
+      }
+      pre {
+        background: var(--soft);
+        padding: 10px 12px;
+        border-radius: 6px;
+        font:
+          13.5px/1.5 Consolas,
+          "Cascadia Mono",
+          ui-monospace,
+          monospace;
+        overflow-x: auto;
+        margin: 10px 0 14px;
+      }
+      pre code {
+        background: none;
+        padding: 0;
+        font: inherit;
+      }
+      .doc-table {
+        overflow: visible;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        margin: 10px 0 14px;
+        font-size: 15px;
+      }
+      th,
+      td {
+        text-align: left;
+        vertical-align: top;
+        padding: 7px 10px;
+        border-bottom: 1px solid var(--line);
+      }
+      .doc-table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        color: var(--muted);
+        font-weight: 600;
+        background: var(--soft);
+        box-shadow: 0 1px 0 var(--line);
+      }
+      @media (max-width: 900px) {
+        .doc-table {
+          max-height: 80vh;
+          overflow: auto;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="doc-top">
+      <button type="button" id="docTheme">Light mode</button>
+    </div>
+    <div class="doc-layout">
+      <nav class="doc-toc" aria-label="Contents">
+        <p>Contents</p>
+        <a href="#summary">1. Summary</a>
+        <a href="#take">2. What we take, what we leave</a>
+        <a href="#language">3. Ubiquitous language</a>
+        <a href="#contexts">4. Bounded contexts</a>
+        <a href="#aggregates">5. Aggregates and ownership</a>
+        <a href="#values">6. Values and derived state</a>
+        <a href="#rules">7. Where rules live</a>
+        <a href="#writes">8. Commands and events</a>
+        <a href="#adapters">9. Ports and adapters</a>
+        <a href="#agents">10. Why it suits agents</a>
+        <a href="#smells">11. Warning signs</a>
+        <a href="#checklist">12. Checklist</a>
+      </nav>
+      <main>
+        <h1>Domain-driven design, the way we do it</h1>
+        <p class="status">
+          Tip · written 2026-11-04 · for TypeScript monorepos built mostly by AI
+          coding agents
+        </p>
+
+        <h2 id="summary">1. Summary</h2>
+        <ul>
+          <li>
+            We use DDD's strategic ideas fully: one shared vocabulary, bounded
+            contexts, aggregates with clear owners, and a domain layer free of
+            frameworks.
+          </li>
+          <li>
+            We use a functional style for the code: domain objects are plain
+            readonly data, behaviour is pure functions, and there are no entity
+            classes.
+          </li>
+          <li>
+            We derive whatever can be derived. We store facts and compute
+            balances, matches and states from them.
+          </li>
+          <li>
+            Every rule has one home in the domain package. The client runs it
+            for instant feedback, and the authoritative write side runs it
+            again.
+          </li>
+          <li>
+            None of it depends on a build tool. Lint enforces the boundaries.
+            For the monorepo, use Turborepo by default, or Nx when the repo is
+            planned to grow large (§4.4).
+          </li>
+          <li>
+            The test of the design is whether an agent can work in one context
+            without reading the others, and whether a forgotten rule fails
+            loudly.
+          </li>
+        </ul>
+
+        <h2 id="take">2. What we take, what we leave</h2>
+        <div class="doc-table">
+          <table>
+            <thead>
+              <tr>
+                <th>DDD idea</th>
+                <th>Our use</th>
+                <th>How</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Ubiquitous language</td>
+                <td>Fully</td>
+                <td>
+                  A glossary in the agent instructions; capitalized terms (§3)
+                </td>
+              </tr>
+              <tr>
+                <td>Bounded contexts and a context map</td>
+                <td>Fully</td>
+                <td>
+                  One folder or lib per context; boundaries enforced by lint
+                  (§4)
+                </td>
+              </tr>
+              <tr>
+                <td>Aggregates</td>
+                <td>Fully</td>
+                <td>
+                  An ownership table with "owns" and "must not own" columns (§5)
+                </td>
+              </tr>
+              <tr>
+                <td>Value objects</td>
+                <td>Fully</td>
+                <td>Readonly types, compared by content (§6)</td>
+              </tr>
+              <tr>
+                <td>Repositories, anti-corruption layers</td>
+                <td>Fully</td>
+                <td>
+                  Ports in a persistence lib; one adapter per third-party
+                  library (§9)
+                </td>
+              </tr>
+              <tr>
+                <td>Entities with methods</td>
+                <td>Left out</td>
+                <td>
+                  Plain data plus pure functions, which are easier to serialize,
+                  diff and test
+                </td>
+              </tr>
+              <tr>
+                <td>Domain events</td>
+                <td>Lightly</td>
+                <td>
+                  Fact records and change signals, with no event bus framework
+                  (§8)
+                </td>
+              </tr>
+              <tr>
+                <td>CQRS, event sourcing</td>
+                <td>In spirit</td>
+                <td>
+                  Typed commands; state derived from ledgers, with no framework
+                </td>
+              </tr>
+              <tr>
+                <td>Factories, specifications, domain services as classes</td>
+                <td>Left out</td>
+                <td>Plain functions do the same job</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h2 id="language">3. Ubiquitous language</h2>
+        <ol>
+          <li>
+            Keep a glossary of domain terms in the agent instructions (CLAUDE.md
+            / AGENTS.md). Capitalize the terms and always use them precisely, so
+            an agent sees the vocabulary in every session.
+          </li>
+          <li>
+            Use one word per concept. Where the business has synonyms, write the
+            mapping down ("Indicator = Process") and pick one word for the code.
+          </li>
+          <li>
+            Write down where code names and UI words differ, for example "the UI
+            says Trade, never OrderMatch".
+          </li>
+          <li>
+            Treat a rename as a refactor. Change the glossary, the code and the
+            UI copy in one change, and leave compatibility names only with a
+            comment saying why.
+          </li>
+          <li>
+            Retire terms explicitly. A retired concept gets a line saying it
+            must not come back ("Workbench is retired: no code path may read or
+            write it"). Otherwise agents that find the old names will bring the
+            concept back.
+          </li>
+        </ol>
+
+        <h2 id="contexts">4. Bounded contexts</h2>
+        <h3>4.1 Shape</h3>
+        <ul>
+          <li>
+            A context is a part of the domain with its own words and rules, such
+            as Trading, Learning or Presentation.
+          </li>
+          <li>
+            Each context is one folder in the domain package, or its own lib
+            once it is big. It has an <code>index.ts</code> as its public
+            surface, and other contexts import only that index.
+          </li>
+          <li>
+            The shared kernel (shared contract types plus a small kernel folder)
+            holds only what two or more contexts need. Code tends to drift into
+            it, so review what lands there.
+          </li>
+          <li>
+            Persistence and UI code stay in the apps, outside the contexts.
+          </li>
+        </ul>
+        <h3>4.2 The context map</h3>
+        <p>
+          One section in the architecture doc names each context, what it owns
+          and its folder, and says how the contexts relate:
+        </p>
+        <div class="doc-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Relationship</th>
+                <th>Meaning</th>
+                <th>Typical case</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Shared kernel</td>
+                <td>Types both sides own together; change them with care</td>
+                <td>The contracts lib</td>
+              </tr>
+              <tr>
+                <td>Customer / supplier</td>
+                <td>One context uses another's public surface</td>
+                <td>Learning reads Trading facts</td>
+              </tr>
+              <tr>
+                <td>Conformist</td>
+                <td>We copy an outside model exactly</td>
+                <td>A faithful port, pinned by golden tests</td>
+              </tr>
+              <tr>
+                <td>Anti-corruption layer</td>
+                <td>We translate an outside model into ours at one boundary</td>
+                <td>An importer, an API client</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <h3>4.3 Enforcement</h3>
+        <ol>
+          <li>
+            Between packages, a rule says which kinds of package may depend on
+            which (apps → domain → contracts), and bans framework imports from
+            the domain and contracts packages. The rule can come from the
+            monorepo tool (§4.4) or a lint plugin; either way it runs in lint.
+          </li>
+          <li>
+            Between folders in one package, use ESLint's
+            <code>no-restricted-imports</code>: one <code>files</code> block per
+            context folder, banning imports from the folders it may not use and
+            deep imports past another context's index. This needs no monorepo
+            tool at all.
+          </li>
+          <li>
+            A package's <code>package.json</code> <code>exports</code> field
+            makes its public surface hard to bypass: anything not exported can't
+            be imported from outside.
+          </li>
+          <li>
+            Run eslint in the pre-commit hook so a crossed boundary blocks the
+            commit. Agents break rules that exist only in the docs.
+          </li>
+          <li>
+            When adding a boundary to existing code, measure the crossings
+            first. Fix them, or list them as named exceptions, so the rule
+            passes from the start.
+          </li>
+        </ol>
+
+        <h3>4.4 Choosing a monorepo tool</h3>
+        <p>
+          DDD doesn't need any particular build tool. A monorepo tool runs tasks
+          in dependency order, caches their results and runs only what changed.
+          The design in this guide works the same with either choice below.
+        </p>
+        <ol>
+          <li>
+            <strong>Default: Turborepo.</strong> Use it for most new projects.
+            It is a thin layer over package-manager workspaces (a
+            <code>package.json</code> per package and one
+            <code>turbo.json</code>) that runs your own scripts, so it is quick
+            to set up and easy to leave. For boundaries, use
+            <code>eslint-plugin-boundaries</code> or
+            <code>no-restricted-imports</code> (§4.3). Treat Turborepo's own
+            boundaries check as an extra until it is stable.
+          </li>
+          <li>
+            <strong>Nx, when the repo is planned to grow large.</strong> Choose
+            it from the start if you expect many apps and libraries, a framework
+            with heavy upgrades (Angular, NestJS), several languages, or long CI
+            runs. It adds a mature boundary rule with tags
+            (<code>@nx/enforce-module-boundaries</code>), generators, automated
+            upgrades (<code>nx migrate</code>), language plugins and CI runs
+            spread across machines.
+          </li>
+          <li>
+            <strong>Don't switch for speed.</strong> The two run at similar
+            speeds; what decides speed is the cache hit rate, correct
+            <code>inputs</code>/<code>outputs</code>, running only what changed,
+            and a shared remote cache. Move from Turborepo to Nx when the repo's
+            size or upgrade work calls for it, not before.
+          </li>
+          <li>
+            <strong>Mostly another language,</strong> or several in equal
+            measure: use a tool built for it (moon, Pants, Gradle, Bazel) and
+            that language's own boundary checks (ArchUnit, import-linter, Go
+            <code>internal/</code> packages).
+          </li>
+        </ol>
+
+        <h2 id="aggregates">5. Aggregates and ownership</h2>
+        <ol>
+          <li>
+            Every piece of durable data has exactly one owner, its aggregate.
+            Write a table with "owns" and "must not own" columns in the
+            architecture doc. The "must not own" column does as much work as the
+            other one.
+          </li>
+          <li>
+            Refer to another aggregate by id, never by embedding it. Use an id
+            that stays the same for the thing's whole life: an id that changes
+            when the thing changes state is the wrong reference.
+          </li>
+          <li>
+            Give each aggregate a revision number for optimistic concurrency. A
+            write names the revision it read, and the server refuses a stale
+            one. Use separate revisions where parts change at different rates
+            (content vs configuration).
+          </li>
+          <li>
+            One write changes one aggregate. Where a gesture spans several (a
+            copy, a transfer with two sides), run it in one server transaction
+            inside a named service.
+          </li>
+          <li>
+            Published things are immutable versions. There is a mutable draft,
+            an immutable Version, and per-user state pinned to one Version.
+            Nothing edits a Version after it is published.
+          </li>
+          <li>
+            Runtime state is not an aggregate. Open windows, timers, queues and
+            the current cursor live in a runtime layer and are never persisted
+            as they are.
+          </li>
+        </ol>
+
+        <h2 id="values">6. Values and derived state</h2>
+        <ul>
+          <li>
+            A value object is a readonly type with no identity: a reference, a
+            meaning, a time range, a rule snapshot. Compare it by content.
+          </li>
+          <li>
+            Store facts and derive everything else. Orders and cash entries are
+            facts. Trades, balances, drawdown and rule state are computed by
+            pure functions that replay the facts. Derived values are never
+            stored, so they can never be stale.
+          </li>
+          <li>
+            When deriving is too slow, cache the result keyed on the facts'
+            revision. Never keep it as a second source of truth.
+          </li>
+          <li>
+            A snapshot is a fact too. When a rule set is copied into a record
+            ("the rules this attempt started under"), store the copy plus the id
+            and version it came from.
+          </li>
+        </ul>
+
+        <h2 id="rules">7. Where rules live</h2>
+        <h3>7.1 The rule</h3>
+        <ol>
+          <li>
+            Every invariant is a pure function in the domain package, in its
+            context's folder.
+          </li>
+          <li>
+            The client calls it before writing, for an instant, friendly
+            refusal.
+          </li>
+          <li>
+            The authoritative write side calls the same function and refuses the
+            write if it fails. The server is the one side that can't be
+            bypassed.
+          </li>
+          <li>
+            Specs test the function once, and each side has a thin spec showing
+            that it calls it.
+          </li>
+        </ol>
+        <h3>7.2 Hooks per type</h3>
+        <p>
+          With a generic data model (typed records in collections), put the
+          rules on a registry entry per type rather than in the handlers:
+        </p>
+        <pre><code>interface TypeDefinition&lt;T&gt; {
+  validate(next: T): boolean;                      // shape and values
+  validateChange?(prev: T | null, next: T | null,
+                  ctx: WriteContext): string | null; // transitions: locks, pairs, values that only grow
+}</code></pre>
+        <ul>
+          <li>
+            <code>validate</code> checks one record on its own.
+            <code>validateChange</code> checks a transition: a locked record
+            being edited, a value that may only grow being made smaller, one
+            half of a pair being removed.
+          </li>
+          <li>
+            The write context is loaded once per command, never once per record.
+          </li>
+          <li>
+            Refusals are in plain words, so the client can show them as they
+            are.
+          </li>
+        </ul>
+        <h3>7.3 Choke points</h3>
+        <p>
+          Some rules need runtime state the server doesn't have, such as the
+          live price or the current cursor. Each such rule gets one choke-point
+          function on the client that every path goes through, with a comment
+          there. Treat it as debt: a plan to make the server check it should
+          exist, even if it's deferred.
+        </p>
+
+        <h2 id="writes">8. Commands and events</h2>
+        <ul>
+          <li>
+            Writes are typed commands, not raw CRUD. A command names its
+            aggregate and the revision it expects, and returns the new
+            revisions.
+          </li>
+          <li>
+            <strong>Generic commands</strong> (save these records, append to
+            this list) suit editing data. With them, the rules belong in the
+            per-type hooks (§7.2).
+          </li>
+          <li>
+            <strong>Domain commands</strong> (<code>order.place</code>) suit
+            actions whose rules span several records, and they make it obvious
+            who owns the rule. Add one when the hooks get awkward, not by
+            default.
+          </li>
+          <li>
+            An event is a fact record ("order submitted"), stored or emitted
+            after a write succeeds. Other contexts read the facts and never
+            reach into the writer's internals.
+          </li>
+          <li>
+            Optimistic client updates revert when the server refuses them. Async
+            check-then-create work is serialized per resource key.
+          </li>
+        </ul>
+
+        <h2 id="adapters">9. Ports and adapters</h2>
+        <ol>
+          <li>
+            The domain package imports no framework, ORM, UI library or chart
+            library, and lint bans them.
+          </li>
+          <li>
+            Repositories are ports in their own lib, with adapters (in-memory
+            for tests, local storage, HTTP). Domain code never knows which one
+            it has.
+          </li>
+          <li>
+            Each third-party library sits behind one adapter file. The data it
+            stores is plain JSON that the rest of the code treats as opaque.
+            Heavy libraries load lazily.
+          </li>
+          <li>
+            Serialization to storage happens at exactly one boundary (one
+            serializers file), so storage quirks never leak inward.
+          </li>
+          <li>
+            An outside model enters through an anti-corruption layer (an
+            importer). The importer keys records by the source's own id and
+            hash, so a re-import can tell local edits from changes at the
+            source.
+          </li>
+        </ol>
+
+        <h2 id="agents">10. Why it suits agents</h2>
+        <div class="doc-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Practice</th>
+                <th>What an agent gains</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Glossary in the instructions</td>
+                <td>
+                  Consistent names in code and copy, without being told each
+                  time
+                </td>
+              </tr>
+              <tr>
+                <td>Context folders with an index</td>
+                <td>
+                  It reads one context, not the whole lib, and makes fewer edits
+                  in the wrong place
+                </td>
+              </tr>
+              <tr>
+                <td>Lint-enforced boundaries</td>
+                <td>A wrong import fails at commit, not at review</td>
+              </tr>
+              <tr>
+                <td>Rules run by the write side</td>
+                <td>
+                  A forgotten call becomes a refused write and a failing spec
+                </td>
+              </tr>
+              <tr>
+                <td>Pure domain functions</td>
+                <td>
+                  Cheap, fast specs with no framework setup, so it can check its
+                  own work
+                </td>
+              </tr>
+              <tr>
+                <td>Derived instead of stored state</td>
+                <td>No "remember to update X too" code paths</td>
+              </tr>
+              <tr>
+                <td>A CLAUDE.md / AGENTS.md per context</td>
+                <td>
+                  A context's gotchas load only when it works there, and the
+                  root file stays short
+                </td>
+              </tr>
+              <tr>
+                <td>Context map</td>
+                <td>
+                  It knows where a feature belongs before it starts searching
+                </td>
+              </tr>
+              <tr>
+                <td>Contexts as lanes</td>
+                <td>
+                  Parallel agents touch separate folders and conflict less
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h2 id="smells">11. Warning signs</h2>
+        <ul>
+          <li>
+            <strong
+              >"A new path must call X" lines piling up in CLAUDE.md.</strong
+            >
+            The rule is in the wrong place. Move it to the domain and the write
+            side, then delete the line.
+          </li>
+          <li>
+            <strong>A facade class thousands of lines long.</strong> A thin
+            entry point is fine, but domain logic inside it is invisible to the
+            server and hard for an agent to take in. Move the pure parts into
+            the domain package.
+          </li>
+          <li>
+            <strong>The shared contracts lib as a dumping ground.</strong> A
+            type used by one context belongs in that context.
+          </li>
+          <li>
+            <strong
+              >Stored totals, counts or statuses that could be derived.</strong
+            >
+            They drift. Derive them, or cache them keyed on a revision.
+          </li>
+          <li>
+            <strong>Deep imports into another context's files.</strong> Use its
+            index, or move the thing into the kernel.
+          </li>
+          <li>
+            <strong>Filename prefixes standing in for folders</strong>
+            (<code>lab-*</code>, <code>order-*</code>). These are contexts that
+            haven't been named yet.
+          </li>
+        </ul>
+
+        <h2 id="checklist">12. Checklist</h2>
+        <h3>12.1 A new project</h3>
+        <ol>
+          <li>
+            Write the glossary into CLAUDE.md / AGENTS.md before the first
+            feature.
+          </li>
+          <li>
+            Pick the monorepo tool (§4.4): Turborepo by default, Nx if the repo
+            is planned to grow large.
+          </li>
+          <li>
+            Create <code>contracts</code>, <code>domain</code> and
+            <code>persistence</code> packages. Put the package dependency rule
+            and the framework bans in the root eslint config.
+          </li>
+          <li>Add a pre-commit hook that runs eslint on staged files.</li>
+          <li>
+            Write the ownership table and the context map in the architecture
+            doc.
+          </li>
+          <li>
+            Create one folder per context, with an <code>index.ts</code> and a
+            short CLAUDE.md / AGENTS.md.
+          </li>
+          <li>
+            Make the write side call the per-type <code>validate</code> hooks
+            from day one.
+          </li>
+        </ol>
+        <h3>12.2 A new feature</h3>
+        <ol>
+          <li>
+            Name its context. If none fits, decide whether it is a new context
+            and add it to the map.
+          </li>
+          <li>Add any new terms to the glossary.</li>
+          <li>
+            Name the aggregate that owns its data, and what that aggregate must
+            not own.
+          </li>
+          <li>Decide what is stored (facts) and what is derived.</li>
+          <li>
+            Write each rule as a pure function in the context, call it on both
+            sides, and spec it.
+          </li>
+          <li>
+            Put the feature's gotchas in that context's CLAUDE.md, and only the
+            ones no check can catch.
+          </li>
+        </ol>
+      </main>
+    </div>
+
+    <script>
+      /* light mode toggle */
+      (function () {
+        const root = document.documentElement;
+        const btn = document.getElementById("docTheme");
+        btn.addEventListener("click", () => {
+          const toLight = root.dataset.theme !== "light";
+          if (toLight) root.dataset.theme = "light";
+          else delete root.dataset.theme;
+          btn.textContent = toLight ? "Dark mode" : "Light mode";
+        });
+      })();
+
+      /* table of contents: mark the section being read */
+      (function () {
+        const links = Array.from(document.querySelectorAll("nav.doc-toc a"));
+        if (!links.length || !("IntersectionObserver" in window)) return;
+        const byId = new Map(
+          links.map((a) => [a.getAttribute("href").slice(1), a]),
+        );
+        const io = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((e) => {
+              if (!e.isIntersecting) return;
+              const a = byId.get(e.target.id);
+              if (!a) return;
+              links.forEach((l) => l.classList.toggle("is-current", l === a));
+            });
+          },
+          { rootMargin: "-15% 0px -75% 0px" },
+        );
+        byId.forEach((_, id) => {
+          const el = document.getElementById(id);
+          if (el) io.observe(el);
+        });
+      })();
+    </script>
+  </body>
+</html>

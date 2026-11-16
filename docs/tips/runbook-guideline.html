@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Runbook guideline</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #12161c; --fg: #e3e8ef; --muted: #9aa5b4; --line: #2a323d; --soft: #1a2029; --accent: #7aa2ff;
+  --note: #1b2433; --note-line: #2f4a7a; --warn: #2d2117; --warn-line: #8a5a1f; --good: #16261d; --good-line: #2f6b45;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #ffffff; --fg: #1c2430; --muted: #5b6675; --line: #dfe4ea; --soft: #f4f6f9; --accent: #1d4ed8;
+  --note: #eef3fd; --note-line: #b8cbf2; --warn: #fdf4e7; --warn-line: #e8c48f; --good: #ecf7f0; --good-line: #a9d8b9;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Arial, sans-serif; }
+
+.doc-top { max-width: 1400px; margin: 0 auto; padding: 14px 20px 0; display: flex; justify-content: flex-end; }
+#docTheme { font: inherit; font-size: 14px; padding: 4px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg); color: var(--muted); cursor: pointer; }
+#docTheme:hover { color: var(--fg); }
+
+.doc-layout { --toc-w: 220px; --toc-gap: 44px; max-width: 1400px; margin: 0 auto; padding: 14px 20px 120px; display: grid; grid-template-columns: var(--toc-w) minmax(0, 1fr); gap: var(--toc-gap); }
+nav.doc-toc { position: sticky; top: 24px; align-self: start; max-height: calc(100vh - 48px); overflow: auto; font-size: 14px; }
+nav.doc-toc p { font-weight: 600; margin: 0 0 10px; }
+nav.doc-toc a { display: block; padding: 5px 10px; color: var(--muted); text-decoration: none; border-left: 2px solid var(--line); }
+nav.doc-toc a:hover { color: var(--fg); }
+nav.doc-toc a.is-current { color: var(--accent); border-left-color: var(--accent); font-weight: 600; }
+@media (max-width: 900px) {
+  .doc-layout { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  nav.doc-toc { position: static; max-height: none; }
+}
+
+main { min-width: 0; }
+main > * { max-width: 780px; }
+h1 { font-size: 28px; line-height: 1.25; margin: 0 0 6px; }
+h2 { font-size: 22px; margin: 44px 0 10px; scroll-margin-top: 16px; }
+h3 { font-size: 17px; margin: 24px 0 6px; }
+ul, ol { padding-left: 22px; } li { margin: 4px 0; }
+a { color: var(--accent); }
+code { font: 14px/1.4 Consolas, "Cascadia Mono", ui-monospace, monospace; background: var(--soft); padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--soft); padding: 10px 12px; border-radius: 6px; font: 13.5px/1.5 Consolas, "Cascadia Mono", ui-monospace, monospace; overflow-x: auto; margin: 10px 0 14px; }
+pre code { background: none; padding: 0; font: inherit; }
+
+.where { display: inline-block; margin: 6px 0 -4px; padding: 1px 10px; border-radius: 999px; background: var(--soft); border: 1px solid var(--line); color: var(--muted); font-size: 13px; font-weight: 600; }
+.note { margin: 16px 0; padding: 12px 14px; border: 1px solid var(--note-line); border-radius: 8px; background: var(--note); }
+.note.warn { border-color: var(--warn-line); background: var(--warn); }
+.note.gate { border-color: var(--good-line); background: var(--good); }
+
+.doc-table { overflow: visible; }
+.doc-table table { width: 100%; border-collapse: collapse; font-size: 15px; }
+.doc-table th, .doc-table td { text-align: left; vertical-align: top; padding: 7px 10px; border-bottom: 1px solid var(--line); }
+.doc-table thead th { position: sticky; top: 0; z-index: 2; background: var(--soft); box-shadow: 0 1px 0 var(--line); }
+@media (max-width: 900px) { .doc-table { max-height: 80vh; overflow: auto; } }
+</style>
+</head>
+<body>
+<div class="doc-top"><button type="button" id="docTheme">Light mode</button></div>
+<div class="doc-layout">
+<nav class="doc-toc" aria-label="Contents">
+  <p>Contents</p>
+  <a href="#summary">1. Summary</a>
+  <a href="#what">2. What a runbook is</a>
+  <a href="#layout">3. Page layout</a>
+  <a href="#steps">4. Steps</a>
+  <a href="#where">5. Where labels</a>
+  <a href="#gates">6. Gates and notes</a>
+  <a href="#secrets">7. Secrets</a>
+  <a href="#envs">8. Environments</a>
+  <a href="#placeholders">9. Placeholders and values</a>
+  <a href="#skeleton">10. Skeleton</a>
+  <a href="#checklist">11. Checklist</a>
+</nav>
+<main>
+<h1>Runbook guideline</h1>
+<p>How to write an operator runbook: a page someone follows, step by step, to set up, deploy, change or repair a system. It builds on the <a href="html-documentation-guideline.html">HTML documentation guideline</a> (page shell, contents, numbering, dark mode, tables) and the <a href="step-naming-guideline.html">step naming guideline</a>. Copy all three into a project's <code>docs/tips/</code> together.</p>
+
+<h2 id="summary">1. Summary</h2>
+<ul>
+  <li>A runbook is an HTML page in <code>docs/runbooks/</code>, never Markdown, in the page shell of the HTML documentation guideline.</li>
+  <li>It opens with a summary, then "Before you start", then numbered sections of numbered, named steps, then verify, rollback and troubleshooting.</li>
+  <li>Step numbers run on across sections, so "step 14" is one place in the whole page.</li>
+  <li>Every command block has a <em>where</em> label that says where to run it: <strong>Local</strong>, <strong>On the VPS</strong>, <strong>In GitHub</strong>.</li>
+  <li>A section that must work before the next one ends with a <strong>gate</strong>: what to look at, and what it should show.</li>
+  <li>Secrets have their master copy in <code>~/Secrets/&lt;project-stub&gt;/</code>, never in a repository. You fill in the local copy and push it to the server; you never edit only on the server.</li>
+  <li>Dev steps come first. Staging starts with the operator's deploy; live is a later stage.</li>
+  <li>Placeholders are in capitals (<code>VPS_IP</code>). No real secret value ever appears in a runbook.</li>
+</ul>
+
+<h2 id="what">2. What a runbook is</h2>
+<ul>
+  <li><strong>A runbook</strong> is followed: set up a server, deploy a release, rotate a key, restore a backup. Each step changes something or checks something.</li>
+  <li><strong>A plan</strong> says what will be built and why. <strong>A guide</strong> explains how something works. If a page is mostly explanation, it isn't a runbook; link to it from the runbook instead.</li>
+  <li>One runbook per job. "Set up staging" and "Release to staging" are two runbooks when they are done at different times. A page that does both splits at a clear section with its own gate.</li>
+  <li>The runbook is for the operator. An AI agent writes and updates it, but deploys and server commands are run by the operator, who follows it.</li>
+</ul>
+
+<h2 id="layout">3. Page layout</h2>
+<p>In this order. Sections are numbered (HTML documentation guideline §3) and named by what they achieve (step naming guideline §4).</p>
+<ol>
+  <li><strong>Title and purpose.</strong> An <code>h1</code> naming the job ("Deploy to the VPS"), then one or two sentences: what this runbook gets done, for which environment, and how long it usually takes.</li>
+  <li><strong>Summary.</strong> Section 1. A few bullets: the shape of the procedure, and where the parts run. A long runbook adds an <em>At a glance</em> list of just the step names.</li>
+  <li><strong>Before you start.</strong> What must already be true and what is needed at hand: access (SSH key, dashboard logins), tools (Git Bash, <code>gh</code>), the <code>~/Secrets/&lt;project-stub&gt;/</code> folder and which files in it, and the runbooks that come first.</li>
+  <li><strong>The procedure.</strong> One numbered section per stage ("3. Put the files on the server"), each a numbered list of named steps, each stage ending with a gate when the next stage depends on it.</li>
+  <li><strong>Verify.</strong> How to tell the whole job worked, in checks anyone can run: a URL that answers, a command whose output shows the new version, a page that signs in.</li>
+  <li><strong>Roll back.</strong> How to undo the job, or say plainly that it can't be undone and what to do instead (database migrations usually can't be).</li>
+  <li><strong>Troubleshooting.</strong> A table: <em>What you see</em> | <em>Likely cause and fix</em>. One row per symptom someone actually hit or is likely to hit.</li>
+  <li><strong>Reference</strong> (optional). Tables of files, settings and common commands that the steps point to. Settings tables name each key, where its value comes from, and whether it is secret.</li>
+</ol>
+
+<h2 id="steps">4. Steps</h2>
+<ul>
+  <li><strong>Numbered and named.</strong> Every step is an item of an ordered list, starting with its name in bold (step naming guideline): <code>14. Push the config files.</code> Then the details.</li>
+  <li><strong>Numbers run on.</strong> Each section's list continues from the last with <code>&lt;ol class="steps" start="14"&gt;</code>, so a step number is unique on the page. When a step is added or removed, renumber the rest and fix every "step N" reference.</li>
+  <li><strong>One job per step.</strong> If the name needs "and", it's probably two steps. A step may hold a short command block or a nested list of settings.</li>
+  <li><strong>Commands are copyable.</strong> A command goes in a <code>&lt;pre&gt;&lt;code&gt;</code> block under a where label (§5), complete and ready to paste, with placeholders in capitals (§9). Don't put prompts (<code>$</code>, <code>#</code>) in front of commands.</li>
+  <li><strong>Say what success looks like.</strong> When the output matters, say what it should show ("prints <code>ready</code>"), not only what to type.</li>
+  <li><strong>Safe to repeat.</strong> Prefer commands that do no harm when run twice (<code>install -d</code>, <code>cp -n</code>, <code>mkdir -p</code>). When a step can't be repeated, say so.</li>
+</ul>
+
+<h2 id="where">5. Where labels</h2>
+<p>A command run in the wrong place is the most common runbook mistake. Every command block has a label just above it saying where it runs, and in which shell when that matters.</p>
+<div class="doc-table"><table>
+  <thead><tr><th>Label</th><th>Means</th></tr></thead>
+  <tbody>
+    <tr><td><span class="where">Local (Git Bash)</span></td><td>On the operator's computer, in Git Bash, from the repository root unless the step says otherwise.</td></tr>
+    <tr><td><span class="where">Local (PowerShell)</span></td><td>On the operator's computer, in PowerShell.</td></tr>
+    <tr><td><span class="where">On the VPS</span></td><td>In an SSH session on the server, as the <code>deploy</code> user unless the step says otherwise.</td></tr>
+    <tr><td><span class="where">In GitHub</span> <span class="where">In Supabase</span></td><td>A web dashboard. Give the click path: <strong>Settings → Secrets and variables → Actions</strong>.</td></tr>
+  </tbody>
+</table></div>
+<pre><code>&lt;span class="where"&gt;Local (Git Bash)&lt;/span&gt;
+&lt;pre&gt;&lt;code&gt;cloud/deploy/scripts/site-files.sh production deploy@VPS_IP&lt;/code&gt;&lt;/pre&gt;</code></pre>
+<pre><code>.where { display: inline-block; margin: 6px 0 -4px; padding: 1px 10px; border-radius: 999px;
+         background: var(--soft); border: 1px solid var(--line); color: var(--muted);
+         font-size: 13px; font-weight: 600; }</code></pre>
+
+<h2 id="gates">6. Gates and notes</h2>
+<h3>6.1 Gates</h3>
+<ul>
+  <li>A gate closes a stage the next stage depends on. It names one observable result: a page, a command's output, a dashboard row.</li>
+  <li>Write it as what to check and what it should show: <em>Gate: <code>site-files.sh</code> prints <code>ready</code>.</em></li>
+  <li>Don't move on until it passes. If it can't pass, go to troubleshooting, not to the next stage.</li>
+</ul>
+<div class="note gate"><strong>Gate:</strong> the repository's Actions secrets list shows <code>VPS_IP</code>, <code>VPS_USER</code>, <code>VPS_DEPLOY_KEY</code> and <code>VPS_KNOWN_HOSTS</code>.</div>
+<h3>6.2 Notes and warnings</h3>
+<ul>
+  <li><strong>Note</strong> (<code>.note</code>): context the reader needs to do the step right, such as why a value differs per environment.</li>
+  <li><strong>Warning</strong> (<code>.note.warn</code>): something that breaks production, loses data or leaks a secret if done wrong. Start with the rule in bold: <strong>Never set <code>DEV_AUTH_BYPASS</code> in production.</strong></li>
+  <li>Use them sparingly. A page full of warnings has none.</li>
+</ul>
+<pre><code>.note      { margin: 16px 0; padding: 12px 14px; border: 1px solid var(--note-line); border-radius: 8px; background: var(--note); }
+.note.warn { border-color: var(--warn-line); background: var(--warn); }
+.note.gate { border-color: var(--good-line); background: var(--good); }</code></pre>
+
+<h2 id="secrets">7. Secrets</h2>
+<h3>7.1 The rule</h3>
+<ul>
+  <li><strong>Master copy in <code>~/Secrets/&lt;project-stub&gt;/</code>.</strong> Every generated or filled-in secret (server env files, passwords, keys, tokens) has its master copy on the operator's computer, in one folder per project and environment: <code>~/Secrets/little-loves-staging/</code>, <code>~/Secrets/little-loves-live/</code>. Never in a repository, not even gitignored on the server.</li>
+  <li><strong>Fill in locally, then push.</strong> A runbook starts each server file from its template in <code>~/Secrets/&lt;project-stub&gt;/</code>, fills it in there, and pushes it to the server. A later change is made to the local copy and pushed again. Never tell the reader to edit a secret file only on the server: the next push undoes it, and the local copy goes stale.</li>
+  <li><strong>Hosted variables are copies too.</strong> Values set in GitHub Actions secrets, Railway or another dashboard have their master copy in the same folder (for example <code>~/Secrets/paragon-api-live/railway.env</code>). Rotating a value means: update the local copy, then the platform.</li>
+  <li><strong>Write generated values straight to the local file.</strong> <code>openssl rand -hex 32</code> output goes into the local env file, not into a terminal scrollback, chat or ticket.</li>
+  <li><strong>Never print values.</strong> Check scripts print setting <em>names</em> that are missing or still placeholders, never values. A runbook never shows a real value, and never asks the reader to paste one into chat.</li>
+  <li><strong>Exceptions, stated where they apply.</strong> SSH keys stay in <code>~/.ssh</code>. A long-lived signing key may be kept offline only. Files a deploy writes itself (<code>.deploy.env</code>) aren't kept locally. A local-dev <code>.env</code> with dev-only values may stay gitignored in the repository folder. Say which exception applies in the step.</li>
+</ul>
+<h3>7.2 Folder names</h3>
+<p><code>&lt;project&gt;-&lt;environment&gt;</code>, lowercase, with hyphens: <code>little-loves-live</code>, <code>tossandtumble-staging</code>, <code>chartchemy-mini</code>. Secrets for shared infrastructure (the VPS itself, the edge, a mail server) go in a folder named for it: <code>~/Secrets/vps-contabo/</code>, <code>~/Secrets/mailcow/</code>. The "Before you start" section names the folder the runbook uses.</p>
+<h3>7.3 The push step</h3>
+<p>One push block per runbook, which later steps refer to. It strips Windows line endings (Docker would keep the <code>\r</code> in every value), never leaves a secret file readable by others, and sets the final modes.</p>
+<span class="where">Local (Git Bash)</span>
+<pre><code>cd ~/Secrets/PROJECT-ENV
+for f in api.env web-config.json; do
+  tr -d '\r' &lt; "$f" | ssh deploy@VPS_IP "umask 077; cat &gt; /opt/SITE_SLUG/$f"
+done
+ssh deploy@VPS_IP "cd /opt/SITE_SLUG &amp;&amp; chmod 600 api.env &amp;&amp; chmod 644 web-config.json"</code></pre>
+<p>After a push, the step names the container to restart so the new values are read.</p>
+<div class="note warn"><strong>Never put a secret in a file served to browsers.</strong> Public config (such as <code>web-config.json</code>) holds only publishable values. Say so next to the step that fills it in.</div>
+
+<h2 id="envs">8. Environments</h2>
+<ul>
+  <li><strong>Dev, then staging, then live.</strong> In a runbook that covers more than one environment, the dev steps come first. Staging steps are a later stage that starts with the operator's deploy; live comes after that. Don't mix them in one pass.</li>
+  <li><strong>Say which environment each step is for</strong> when the page covers more than one, in the section name ("5. Set up staging") or a table of per-environment values.</li>
+  <li><strong>Separate values per environment.</strong> Each environment has its own secrets folder and its own generated values. Say "don't reuse live's" where a reader might copy one.</li>
+  <li><strong>Live is touched last and least.</strong> A step that changes live data or live settings carries a warning and, where possible, a way back.</li>
+</ul>
+
+<h2 id="placeholders">9. Placeholders and values</h2>
+<ul>
+  <li>Placeholders are in capitals with underscores: <code>VPS_IP</code>, <code>SITE_SLUG</code>, <code>YOUR_GITHUB_OWNER</code>. Explain each one the first time it appears, or in "Before you start".</li>
+  <li>Use the real names of things that aren't secret: paths, user names, domains, schema names, setting keys.</li>
+  <li>Example values use reserved names: <code>example.com</code>, <code>203.0.113.10</code>.</li>
+  <li>Never a real password, key, token or connection string, not even an old one.</li>
+</ul>
+
+<h2 id="skeleton">10. Skeleton</h2>
+<p>The page shell, contents script and theme toggle are those of the HTML documentation guideline; only the body is shown.</p>
+<pre><code>&lt;h1&gt;Deploy to the VPS&lt;/h1&gt;
+&lt;p&gt;Puts a release of the API and web app on the VPS for one environment. About 20 minutes the first time.&lt;/p&gt;
+
+&lt;h2 id="summary"&gt;1. Summary&lt;/h2&gt;
+&lt;ul&gt;&lt;li&gt;…&lt;/li&gt;&lt;/ul&gt;
+
+&lt;h2 id="before"&gt;2. Before you start&lt;/h2&gt;
+&lt;ul&gt;
+  &lt;li&gt;SSH access as &lt;code&gt;deploy&lt;/code&gt; (&lt;a href="vps-setup.html"&gt;VPS setup&lt;/a&gt; done).&lt;/li&gt;
+  &lt;li&gt;&lt;code&gt;~/Secrets/PROJECT-ENV/&lt;/code&gt; with &lt;code&gt;api.env&lt;/code&gt; filled in (§7 of the runbook guideline).&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id="files"&gt;3. Put the files on the server&lt;/h2&gt;
+&lt;ol class="steps" start="1"&gt;
+  &lt;li&gt;&lt;strong&gt;Start the local copies.&lt;/strong&gt; …
+    &lt;span class="where"&gt;Local (Git Bash)&lt;/span&gt;
+    &lt;pre&gt;&lt;code&gt;…&lt;/code&gt;&lt;/pre&gt;&lt;/li&gt;
+  &lt;li&gt;&lt;strong&gt;Push the config files.&lt;/strong&gt; …&lt;/li&gt;
+&lt;/ol&gt;
+&lt;div class="note gate"&gt;&lt;strong&gt;Gate:&lt;/strong&gt; … prints &lt;code&gt;ready&lt;/code&gt;.&lt;/div&gt;
+
+&lt;h2 id="release"&gt;4. Release&lt;/h2&gt;
+&lt;ol class="steps" start="3"&gt;…&lt;/ol&gt;
+
+&lt;h2 id="verify"&gt;5. Verify&lt;/h2&gt;
+&lt;h2 id="rollback"&gt;6. Roll back&lt;/h2&gt;
+&lt;h2 id="troubleshooting"&gt;7. Troubleshooting&lt;/h2&gt;
+&lt;div class="doc-table"&gt;&lt;table&gt;
+  &lt;thead&gt;&lt;tr&gt;&lt;th&gt;What you see&lt;/th&gt;&lt;th&gt;Likely cause and fix&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;
+  &lt;tbody&gt;…&lt;/tbody&gt;
+&lt;/table&gt;&lt;/div&gt;</code></pre>
+
+<h2 id="checklist">11. Checklist</h2>
+<ol>
+  <li><strong>Format.</strong> HTML in <code>docs/runbooks/</code>, in the HTML documentation guideline's shell: dark with a light toggle, side contents, numbered sections, sticky table headers.</li>
+  <li><strong>Layout.</strong> Summary, Before you start, procedure, Verify, Roll back, Troubleshooting, in that order.</li>
+  <li><strong>Steps.</strong> Every step numbered and named; numbers run on across sections; every "step N" reference is right.</li>
+  <li><strong>Where.</strong> Every command block has a where label.</li>
+  <li><strong>Gates.</strong> Every stage the next one depends on ends with a gate.</li>
+  <li><strong>Secrets.</strong> Master copies in <code>~/Secrets/&lt;project-stub&gt;/</code>, filled in locally and pushed; no step edits a secret only on the server; no real value anywhere on the page.</li>
+  <li><strong>Environments.</strong> Dev before staging before live; per-environment values kept apart.</li>
+  <li><strong>Read the names.</strong> The step names alone tell the whole procedure (step naming guideline §6).</li>
+</ol>
+</main>
+</div>
+
+<script>
+/* light mode toggle */
+(function () {
+  const root = document.documentElement;
+  const btn = document.getElementById('docTheme');
+  btn.addEventListener('click', () => {
+    const toLight = root.dataset.theme !== 'light';
+    if (toLight) root.dataset.theme = 'light'; else delete root.dataset.theme;
+    btn.textContent = toLight ? 'Dark mode' : 'Light mode';
+  });
+})();
+
+/* table of contents: mark the section being read */
+(function () {
+  const links = Array.from(document.querySelectorAll('nav.doc-toc a'));
+  if (!links.length || !('IntersectionObserver' in window)) return;
+  const byId = new Map(links.map((a) => [a.getAttribute('href').slice(1), a]));
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach((e) => {
+      if (!e.isIntersecting) return;
+      const a = byId.get(e.target.id); if (!a) return;
+      links.forEach((l) => l.classList.toggle('is-current', l === a));
+    });
+  }, { rootMargin: '-15% 0px -75% 0px' });
+  byId.forEach((_, id) => { const el = document.getElementById(id); if (el) io.observe(el); });
+})();
+</script>
+</body>
+</html>
