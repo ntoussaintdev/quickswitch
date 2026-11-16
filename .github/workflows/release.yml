@@ -30,6 +30,10 @@ jobs:
         shell: pwsh
         run: ./scripts/changelog-section.ps1 -Version "${{ github.ref_name }}" -OutFile release-notes.md
 
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test
+
       - name: Install Inno Setup
         run: choco install innosetup -y --no-progress
 

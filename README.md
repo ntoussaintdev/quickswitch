@@ -150,7 +150,7 @@ The default renderer is glow (OpenGL). The `wgpu` feature switches to wgpu (Dire
 
 ### 5.1 Releases
 
-GitHub Actions builds every release. `CI` runs fmt, clippy and tests on each push to `main` and on pull requests. To publish a release, bump `version` in `Cargo.toml`, add a `## [X.Y.Z] - YYYY-MM-DD` section to `CHANGELOG.md` (written for users), commit, then push a matching tag:
+GitHub Actions builds every release. The release workflow runs fmt, clippy and tests before it builds; `CI` runs the same checks when started by hand. To publish a release, bump `version` in `Cargo.toml`, add a `## [X.Y.Z] - YYYY-MM-DD` section to `CHANGELOG.md` (written for users), commit, then push a matching tag:
 
 ```powershell
 git tag v0.3.0

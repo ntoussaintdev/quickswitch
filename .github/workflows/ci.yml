@@ -1,9 +1,8 @@
+# Run by hand. The release workflow runs the same checks before it builds.
 name: CI
 
 on:
-  push:
-    branches: [main]
-  pull_request:
+  workflow_dispatch:
 
 jobs:
   check:
