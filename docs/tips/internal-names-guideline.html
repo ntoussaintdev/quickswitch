@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Internal names guideline</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #12161c; --fg: #e3e8ef; --muted: #9aa5b4; --line: #2a323d; --soft: #1a2029; --accent: #7aa2ff;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #ffffff; --fg: #1c2430; --muted: #5b6675; --line: #dfe4ea; --soft: #f4f6f9; --accent: #1d4ed8;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Arial, sans-serif; }
+
+.doc-top { max-width: 1400px; margin: 0 auto; padding: 14px 20px 0; display: flex; justify-content: flex-end; }
+#docTheme { font: inherit; font-size: 14px; padding: 4px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg); color: var(--muted); cursor: pointer; }
+#docTheme:hover { color: var(--fg); }
+
+.doc-layout { --toc-w: 220px; --toc-gap: 44px; max-width: 1400px; margin: 0 auto; padding: 14px 20px 120px; display: grid; grid-template-columns: var(--toc-w) minmax(0, 1fr); gap: var(--toc-gap); }
+nav.doc-toc { position: sticky; top: 24px; align-self: start; max-height: calc(100vh - 48px); overflow: auto; font-size: 14px; }
+nav.doc-toc p { font-weight: 600; margin: 0 0 10px; }
+nav.doc-toc a { display: block; padding: 5px 10px; color: var(--muted); text-decoration: none; border-left: 2px solid var(--line); }
+nav.doc-toc a:hover { color: var(--fg); }
+nav.doc-toc a.is-current { color: var(--accent); border-left-color: var(--accent); font-weight: 600; }
+@media (max-width: 900px) {
+  .doc-layout { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  nav.doc-toc { position: static; max-height: none; }
+}
+
+main { min-width: 0; }
+main > * { max-width: 780px; }
+h1 { font-size: 28px; line-height: 1.25; margin: 0 0 6px; }
+h2 { font-size: 22px; margin: 44px 0 10px; scroll-margin-top: 16px; }
+h3 { font-size: 17px; margin: 24px 0 6px; }
+ul, ol { padding-left: 22px; } li { margin: 4px 0; }
+a { color: var(--accent); }
+code { font: 14px/1.4 Consolas, "Cascadia Mono", ui-monospace, monospace; background: var(--soft); padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--soft); padding: 10px 12px; border-radius: 6px; font: 13.5px/1.5 Consolas, "Cascadia Mono", ui-monospace, monospace; overflow-x: auto; margin: 10px 0 14px; }
+pre code { background: none; padding: 0; font: inherit; }
+table { border-collapse: collapse; width: 100%; margin: 10px 0 14px; font-size: 15px; }
+th, td { text-align: left; vertical-align: top; padding: 7px 10px; border-bottom: 1px solid var(--line); }
+th { color: var(--muted); font-weight: 600; }
+.status { color: var(--muted); font-size: 15px; margin: 0 0 18px; }
+</style>
+</head>
+<body>
+<div class="doc-top"><button type="button" id="docTheme">Light mode</button></div>
+<div class="doc-layout">
+<nav class="doc-toc" aria-label="Contents">
+  <p>Contents</p>
+  <a href="#summary">1. Summary</a>
+  <a href="#internal">2. What counts as internal</a>
+  <a href="#where">3. Where the rule applies</a>
+  <a href="#instead">4. What to write instead</a>
+  <a href="#labels">5. One place for labels</a>
+  <a href="#technical">6. Technical details</a>
+  <a href="#docs">7. User documentation</a>
+  <a href="#plans">8. Building from a plan</a>
+  <a href="#examples">9. Examples</a>
+  <a href="#check">10. Checking an app</a>
+</nav>
+<main>
+<h1>Internal names guideline</h1>
+<p class="status">For every app with screens people use, and the documentation written for them · created 2026-11-25 · from Little Loves, where a plan reference (&ldquo;plan n8&rdquo;) and a field key (<code>loyaltyGiftUnit</code>) reached the back office</p>
+
+<h2 id="summary">1. Summary</h2>
+<ul>
+  <li>What people see in an app speaks their language: the words on the screen, the shop, the till, the customer. It never shows how the app is built or how it was planned.</li>
+  <li>Plan references, section numbers, tweak numbers, field keys, table and column names, raw status values, function names and file paths stay in code comments and internal documentation.</li>
+  <li>Values that come from the code (fields, statuses, origins, error reasons) reach the screen through one label map, never as the raw value.</li>
+  <li>A diagnostic view may show raw records, folded away under &ldquo;Technical details&rdquo;, for the people who diagnose problems only.</li>
+  <li>The user guide follows the same rule as the screens. Plans and runbooks may cite anything.</li>
+</ul>
+
+<h2 id="internal">2. What counts as internal</h2>
+<table>
+  <tr><th>Kind</th><th>Examples</th></tr>
+  <tr><td>Plan and project references</td><td>&ldquo;plan n8&rdquo;, &ldquo;(plan 29)&rdquo;, &ldquo;§3.9&rdquo;, &ldquo;T97&rdquo;, &ldquo;Phase A&rdquo;, &ldquo;D11&rdquo;, ticket and issue numbers, decision IDs</td></tr>
+  <tr><td>Names from the code</td><td>Field keys (<code>loyaltyGiftUnit</code>, <code>postCode</code>), database tables and columns (<code>sync_conflicts</code>, <code>till_deleted_at</code>), function names (<code>narrowToTill</code>), file paths, environment variables, migration names</td></tr>
+  <tr><td>Names from other systems</td><td>Another product's tables and columns (<code>PosMainTb</code>, <code>GiftUnit</code>), error codes (<code>otp_expired</code>, <code>23503</code>), HTTP statuses</td></tr>
+  <tr><td>Raw values</td><td>Enum and status values as stored (<code>pos</code>, <code>pos_wins</code>, <code>failed</code>), internal flags and codes (<code>flg = 10</code>), IDs where a name exists</td></tr>
+  <tr><td>Build notes</td><td>&ldquo;until the till is updated&rdquo; when that means a release the reader can't see, &ldquo;for now&rdquo;, &ldquo;TODO&rdquo;, &ldquo;not built yet&rdquo;, version or release names</td></tr>
+</table>
+<p>A name is <em>not</em> internal when it's what the reader sees and uses elsewhere: a program the reader installs and recognises (&ldquo;the sidecar&rdquo;, when that's what it's called on their PC), a setting's label in another app's screen, a file the reader is asked to open. The test: would the reader recognise the word without having seen the code or the plans?</p>
+
+<h2 id="where">3. Where the rule applies</h2>
+<p><strong>Everything a user reads</strong>, whatever produces it:</p>
+<ul>
+  <li>Screens: headings, labels, column headers, select options, buttons, help text, empty states, banners, toasts, confirm dialogs, tooltips, placeholders.</li>
+  <li>Accessible text: <code>aria-label</code>, <code>title</code>, alt text. A screen reader user hears it.</li>
+  <li>Text the server sends to a screen: error messages, warnings, report and permission descriptions, summaries of changes, reasons in lists.</li>
+  <li>Emails, notifications, alerts, PDFs, exports (column headers, sheet names) and printed receipts.</li>
+  <li>The user guide, help pages, release notes for users, and in-app tours.</li>
+</ul>
+<p><strong>Not covered</strong>, and free to cite anything:</p>
+<ul>
+  <li>Code comments, commit messages, test names and test data.</li>
+  <li>Template comments the framework removes at build time (Angular strips HTML comments from templates by default). Check that yours does before relying on it: a comment shipped to the browser is visible in the page source.</li>
+  <li>Plans, runbooks, implementation logs, architecture notes and other internal documentation.</li>
+  <li>Server logs and log messages meant for whoever operates the app.</li>
+</ul>
+
+<h2 id="instead">4. What to write instead</h2>
+<ol>
+  <li><b>Say what it means for the reader.</b> Not &ldquo;Until plan n8 the till names one bad item&rdquo;, but &ldquo;The till names one bad item each time, so a re-run may stop at the next one.&rdquo; If a limit will go away later, say what happens now; the screen changes when the limit does.</li>
+  <li><b>Use the word the screen already uses.</b> If the product page labels a value &ldquo;Points per item sold&rdquo;, every other screen, message and email calls it that too.</li>
+  <li><b>Turn codes into words.</b> <code>pos</code> becomes &ldquo;The till&rdquo;, <code>failed</code> becomes &ldquo;Failed&rdquo;, <code>not_on_till</code> becomes &ldquo;Not on the till&rdquo;.</li>
+  <li><b>Turn errors into what to do.</b> Not <code>otp_expired</code>, but &ldquo;This link has expired. Send a new one.&rdquo; Log the raw error for the operator.</li>
+  <li><b>Drop the citation.</b> &ldquo;Gift cards are sold in the shop only (plan 29)&rdquo; loses nothing as &ldquo;Gift cards are sold in the shop only&rdquo;.</li>
+</ol>
+
+<h2 id="labels">5. One place for labels</h2>
+<ul>
+  <li>Each kind of value that reaches a screen has one label map in shared code (a contracts or domain library both the server and the screens can import), for example <code>tillFieldLabel(field)</code>, <code>STATUS_LABELS</code>, <code>ORIGIN_LABELS</code>.</li>
+  <li>Screens, server messages, emails and exports all use the same map, so a value has the same name everywhere.</li>
+  <li>The map falls back to the raw value for an unknown key, so a new field shows up rather than breaking the page. A test lists every known key and checks it has a label, so the fallback is never what users see.</li>
+  <li>Server text that names a value (&ldquo;<em>Points per item sold</em> had changed on the till first&rdquo;) goes through the same map before it is sent.</li>
+  <li>A filter or select sends the raw key and shows the label: <code>&lt;option [value]="f"&gt;{{ label(f) }}&lt;/option&gt;</code>.</li>
+</ul>
+
+<h2 id="technical">6. Technical details</h2>
+<p>Some screens exist to diagnose problems: a sync record, the raw row another system sent, an error as it was received. Those may show internal names, under three conditions:</p>
+<ul>
+  <li>Folded away under a heading in plain words, such as &ldquo;Technical details&rdquo; or &ldquo;Till record&rdquo;, closed by default.</li>
+  <li>Shown only to people with the permission for operating the app, not to everyone who can see the page.</li>
+  <li>The heading's one-line description says what it's for in plain words (&ldquo;The records exactly as the till sent them, for diagnosing sync problems&rdquo;), without the internal names themselves.</li>
+</ul>
+
+<h2 id="docs">7. User documentation</h2>
+<ul>
+  <li>The user guide uses the screen's words and describes what the reader sees and does. It never says &ldquo;since plan n7&rdquo;, &ldquo;the <code>till_deleted_at</code> mark&rdquo; or &ldquo;the <code>narrowToTill</code> check&rdquo;.</li>
+  <li>When a feature arrives, the user guide says what changed for the reader (&ldquo;Products the till has deleted are now hidden from the products list&rdquo;), not which plan built it.</li>
+  <li>Internal documentation links to the user guide for wording, and may cite plans, code and tables freely. A runbook written for an operator is internal; a help page in the app is not.</li>
+  <li>Release notes for users follow the user guide's rule. Release notes for the team may cite plans.</li>
+</ul>
+
+<h2 id="plans">8. Building from a plan</h2>
+<ul>
+  <li>Plans cite sections, decisions and other plans, and a build naturally copies those into what it writes. Keep them in code comments (&ldquo;Plan 2026-11-23 n7 §3.5: …&rdquo;) and out of strings.</li>
+  <li>A plan's wording for a screen is a proposal for the screen. Wording in the plan that explains the plan (&ldquo;until plan n8 ships&rdquo;) is not screen text.</li>
+  <li>When a subagent builds part of a plan, its brief says so: &ldquo;No plan references, section numbers or code names in anything a user reads; label maps for values.&rdquo;</li>
+  <li>The plan's verification includes the check in §10.</li>
+</ul>
+
+<h2 id="examples">9. Examples</h2>
+<table>
+  <tr><th>Seen on screen</th><th>Instead</th></tr>
+  <tr><td>Until the till is updated (plan n8) it names one bad item per try, so a re-run may stop at the next one.</td><td>The till names one bad item each time, so a re-run may stop at the next one.</td></tr>
+  <tr><td>Value: <code>loyaltyGiftUnit</code> · Accept the till for all loyaltyGiftUnit</td><td>Value: Points per item sold · Accept the till for all points per item sold</td></tr>
+  <tr><td>Origin: <code>pos</code></td><td>Origin: The till</td></tr>
+  <tr><td>GiftUnit had changed on the till first (it is 0)</td><td>Points per item sold had changed on the till first (it is 0)</td></tr>
+  <tr><td>Web store payments and refunds … to match against their statements (plan 26 §3.9).</td><td>Web store payments and refunds … to match against their statements.</td></tr>
+  <tr><td>The rows as the till sent them (PosMainTb, PosItemTb, PosRecItemTb), for diagnosing sync problems.</td><td>The records exactly as the till sent them, for diagnosing sync problems.</td></tr>
+  <tr><td>Member form labels: <code>firstName</code>, <code>postCode</code></td><td>First name, Post code</td></tr>
+  <tr><td>Column &ldquo;Points coef.&rdquo;</td><td>Points per item</td></tr>
+</table>
+
+<h2 id="check">10. Checking an app</h2>
+<ol>
+  <li><b>Search the strings.</b> In the screens' templates and the server's user-facing strings (messages, descriptions, warnings, email templates), search for plan references, skipping comments. For example:
+<pre><code>grep -rnE "([Pp]lan (n?[0-9]|20[0-9]{2})|§[0-9]|\bT[0-9]{2,3}\b)" src --include=*.ts \
+  | grep -vE "^\S+:[0-9]+:\s*(//|\*|/\*|&lt;!--)"</code></pre>
+    Then the same for the project's own internal names: its table names, its other systems' table and column names, and its field keys inside <code>{{ }}</code> bindings without a label function.</li>
+  <li><b>Look at the bindings.</b> Every <code>{{ x.field }}</code>, <code>{{ x.status }}</code> or <code>{{ x.kind }}</code> that shows a stored value goes through a label map.</li>
+  <li><b>Read the new screens.</b> Before a release, read each new or changed screen as someone who has never seen the code or the plans. Anything they wouldn't understand is either renamed or moved under Technical details.</li>
+  <li><b>Test the labels.</b> Specs assert the label on screen (&ldquo;Points per item sold&rdquo;), not the raw key, so a regression fails a test.</li>
+</ol>
+</main>
+</div>
+<script>
+/* light mode toggle */
+(function () {
+  const root = document.documentElement;
+  const btn = document.getElementById('docTheme');
+  btn.addEventListener('click', () => {
+    const toLight = root.dataset.theme !== 'light';
+    if (toLight) root.dataset.theme = 'light'; else delete root.dataset.theme;
+    btn.textContent = toLight ? 'Dark mode' : 'Light mode';
+  });
+})();
+
+/* table of contents: mark the section being read */
+(function () {
+  const links = Array.from(document.querySelectorAll('nav.doc-toc a'));
+  if (!links.length || !('IntersectionObserver' in window)) return;
+  const byId = new Map(links.map((a) => [a.getAttribute('href').slice(1), a]));
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach((e) => {
+      if (!e.isIntersecting) return;
+      const a = byId.get(e.target.id); if (!a) return;
+      links.forEach((l) => l.classList.toggle('is-current', l === a));
+    });
+  }, { rootMargin: '-15% 0px -75% 0px' });
+  byId.forEach((_, id) => { const el = document.getElementById(id); if (el) io.observe(el); });
+})();
+</script>
+</body>
+</html>
